@@ -35,4 +35,4 @@ coding style guide: https://github.com/databricks/scala-style-guide
    gRPC 이해하기, 디자인 구상
 
 - 신재욱
-    gRPC 이해하기, sampling 이해하기
+    gRPC 이해하기, sampling
