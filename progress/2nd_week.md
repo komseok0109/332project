@@ -23,7 +23,7 @@
     
 - 이번 주 회의 내용
     
-    ![image.png](image.png)
+    ![image.png](image/week2_1.png)
     
     - JDK 등 개발 환경 버전 확정 : 가장 최신 버전
     - Parallel sort 이해 확인

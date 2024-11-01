@@ -18,11 +18,11 @@
     - shuffling 구현
 - 이번 주 회의 내용 (디자인)
 
-![Notes_241101_145425_1 (1).jpg](week3_1.jpg)
+![Notes_241101_145425_1 (1).jpg](image/week3_1.jpg)
 
-![Notes_241101_145425_2 (1).jpg](week3_2.jpg)
+![Notes_241101_145425_2 (1).jpg](image/week3_2.jpg)
 
-![Notes_241101_145425_3 (1).jpg](week3_3.png)
+![Notes_241101_145425_3 (1).jpg](image/week3_3.png)
 
 - gRPC
     - gRPC이해를 위해 gRPC공식 사이트의 quick start대로 따라 해봤다.
@@ -32,9 +32,9 @@
     - 서버가 메시지를 보내면, 클라이언트가 메시지를 받을 수 있다.
     - 메시지를 다양하게 보낼 수 있는 정도까지 이해하였다.
 
-![image.png](week3_4.png)
+![image.png](image/week3_4.png)
 
-![image.png](week3_5.png)
+![image.png](image/week3_5.png)
 
 - 다음 주 목표
     - 더 구체적인 디자인
