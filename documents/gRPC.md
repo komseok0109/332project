@@ -27,7 +27,7 @@ lazy val root = (project in file("."))
   )
 ```
 
-- project/scaapb.sbt
+- project/scalapb.sbt
     - 생성
 
 ```scala
@@ -149,16 +149,16 @@ object GreeterClient {
     - server : 클래스 생성
     - client  : 클래스 생성
 
-![image.png](/images/gRPC1.png)
+![image.png](images/gRPC1.png)
 
-![image.png](/images/gRPC2.png)
+![image.png](images/gRPC2.png)
 
 - 서버 실행
 
-![image.png](/images/gRPC3.png)
+![image.png](images/gRPC3.png)
 
 - 클라이언트 실행 (서버 실행 상태에서)
 
-![image.png](/images/gRPC4.png)
+![image.png](images/gRPC4.png)
 
 출처: [https://scalapb.github.io/docs/grpc/](https://scalapb.github.io/docs/grpc/)
