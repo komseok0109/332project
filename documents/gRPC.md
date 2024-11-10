@@ -4,27 +4,20 @@ JDK : 11
 
 SDK : 2.13.15
 
-SBT : 1.10.5
+SBT : 1.8.3
 
 - build.sbt
-    - 변경
+    - 추가
 
 ```scala
-ThisBuild / version := "0.1.0-SNAPSHOT"
-ThisBuild / scalaVersion := "2.13.15"
+Compile / PB.targets := Seq(
+  scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+)
 
-lazy val root = (project in file("."))
-  .settings(
-    name := "untitled",
-    libraryDependencies ++= Seq(
-      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
-      "io.grpc" % "grpc-netty-shaded" % scalapb.compiler.Version.grpcJavaVersion,
-      "com.google.protobuf" % "protobuf-java" % "3.21.12"
-    ),
-    Compile / PB.targets := Seq(
-      scalapb.gen(flatPackage = true) -> (Compile / sourceManaged).value / "scalapb"
-    )
-  )
+libraryDependencies ++= Seq(
+  "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
+  "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
+)
 ```
 
 - project/scalapb.sbt
@@ -60,6 +53,8 @@ message HelloReply {
 
 - sbt실행
     - compile입력
+    - .idea 디렉토리 삭제
+    - intellij 재부팅
 
 - src/main/scala/GreeterServer.scala
     - 생성
@@ -67,7 +62,7 @@ message HelloReply {
 ```scala
 import io.grpc.ServerBuilder
 import scala.concurrent.{ExecutionContext, Future}
-import hello._
+import hello.hello._ //targer/scala-2.13/classes에서 모듈 위치
 
 object GreeterServer {
   def main(args: Array[String]): Unit = {
@@ -122,7 +117,7 @@ class GreeterServer(executionContext: ExecutionContext) { self =>
 import io.grpc.ManagedChannelBuilder
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
-import hello._
+import hello.hello._ //targer/scala-2.13/classes에서 모듈 위치
 
 object GreeterClient {
   def main(args: Array[String]): Unit = {
@@ -144,10 +139,15 @@ object GreeterClient {
 
 ```
 
-- intellij 맨 위 실행 옆 점 3개에서 configuration edit
-- 어플리케이션 추가
-    - server : 클래스 생성
-    - client  : 클래스 생성
+- 동작 방법1
+    - intellij 맨 실행 왼쪽 누르고 아래칸 Edit Configurations
+    - 어플리케이션 추가
+        - server : 클래스 생성 && client  : 클래스 생성
+
+- 동작 방법2
+    - sbt에서 runMain으로 object실행(둘 중 하나만 가능, 나머지 하나는 실행버튼으로 실행)
+        - runMain GreeterServer
+        - runMain GreeterClient
 
 ![image.png](images/gRPC1.png)
 
@@ -162,3 +162,5 @@ object GreeterClient {
 ![image.png](images/gRPC4.png)
 
 출처: [https://scalapb.github.io/docs/grpc/](https://scalapb.github.io/docs/grpc/)
+
+- 코드 : [shinjw4929/cs332_project_gRPC at gRPC_test_1](https://github.com/shinjw4929/cs332_project_gRPC/tree/gRPC_test_1)
