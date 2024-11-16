@@ -84,10 +84,11 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 
 <table>
   <tr>
-    <th rowspan="4">rpc</th>
+    <th rowspan="1">rpc</th>
     <th colspan="2">registerWorker : register each worker to master</th>
   </tr>
   <tr>
+    <th rowspan="4">message</th>
     <td rowspan="2">RegisterWorkerRequest<br>(worker -> master)</td>
     <td><code>string workerIP</code> : [worker's IP address]</td>
   </tr>
@@ -102,10 +103,11 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 
 <table>
   <tr>
-    <th rowspan="3">rpc</th>
+    <th rowspan="1">rpc</th>
     <th colspan="2">calculatePivots : Determine the pivot based on sampled data and distribute it to the workers.</th>
   </tr>
   <tr>
+    <th rowspan="4">message</th>
     <td>CalculatePivotRequest<br>(worker -> master)</td>
     <td>
       <code>int32 workerID</code> : [worker's ID number, to say which worker's sampling ended]<br>
@@ -123,30 +125,138 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 
 <table>
   <tr>
-    <th rowspan="3">rpc</th>
-    <th colspan="2">calculatePivots : Determine the pivot based on sampled data and distribute it to the workers.</th>
+    <th rowspan="1">rpc</th>
+    <th colspan="2">partitionCompleteMsg : signals to the master that data partitioning by each worker is complete.
+    </th>
   </tr>
   <tr>
-    <td>CalculatePivotRequest<br>(worker -> master)</td>
+    <th rowspan="4">message</th>
+    <td>PartitioningCompleteRequest
+    <br>(worker -> master)</td>
     <td>
-      <code>int32 workerID</code> : [worker's ID number, to say which worker's sampling ended]<br>
-      <code>repeated string sampleData</code> : [worker's sampled data]
+      <code>int32 workerID</code>
     </td>
   </tr>
   <tr>
-    <td>CalculatePivotReply<br>(master -> worker)</td>
+    <td>PartitioningCompleteReply<br>(master -> worker)</td>
     <td>
-      <code>map&lt;int32, string&gt; workerIPs</code> : [map { workerID -> workerIP }] <br>
-      <code>map&lt;string, int32&gt; key2Worker</code> : [map { key -> workerID }]
+      empty 
     </td>
   </tr>
 </table>
 
 
+<table>
+  <tr>
+    <th rowspan="1">rpc</th>
+    <th colspan="2">startShuffling : signals to the master that merging by each worker is complete
+    </th>
+  </tr>
+  <tr>
+    <th rowspan="4">messages</th>
+    <td>StartShufflingRequest
+    <br>(worker -> master)</td>
+    <td>
+      <code>int32 receiver</code>
+    </td>
+  </tr>
+  <tr>
+    <td>StartShufflingReply<br>(master -> worker)</td>
+    <td>
+      empty 
+    </td>
+  </tr>
+</table>
 
+<table>
+  <tr>
+    <th rowspan="1">rpc</th>
+    <th colspan="2">startShuffling : signals to the master that merging by each worker is complete
+    </th>
+  </tr>
+  <tr>
+    <th rowspan="4">messages</th>
+    <td>MergingCompleteRequest
+    <br>(worker -> master)</td>
+    <td>
+      <code>int32 workerID</code>
+    </td>
+  </tr>
+  <tr>
+    <td>MergingCompleteReply<br>(master -> worker)</td>
+    <td>
+      empty 
+    </td>
+  </tr>
+</table>
 
+<table>
+  <tr>
+    <th rowspan="1">service</th>
+    <th colspan="2">Worker <-> Worker
+    </th>
+  </tr>
+  <tr>
+    <th rowspan="4">rpc</th>
+    <td>sendDataToWorker</td>
+    <td>
+      send data from one worker to others
+    </td>
+  </tr>
+  <tr>
+    <td>shuffleAckno</td>
+    <td>
+      Notify receiver that all data has been sent.
+    </td>
+  </tr>
+</table>
 
+<table>
+  <tr>
+    <th rowspan="1">rpc</th>
+    <th colspan="2">sendDataToWorker
+    </th>
+  </tr>
+  <tr>
+    <th rowspan="4">messages</th>
+    <td>sendDataRequest
+    </td>
+    <td>
+      <code>repeated string datas</code> : [List of data to be sent]
+      <br><code>int32 source</code> : [ID of the worker sending the data]
+    </td>
+  </tr>
+  <tr>
+    <td>sendDataReply</td>
+    <td>
+      empty 
+    </td>
+  </tr>
+</table>
 
+<table>
+  <tr>
+    <th rowspan="1">rpc</th>
+    <th colspan="2">shuffleAckno: Notify receiver that all data has been sent.
+    </th>
+  </tr>
+  <tr>
+    <th rowspan="4">messages</th>
+    <td>shuffleAcknoRequest
+    </td>
+    <td>
+    <code>int32 source</code>
+    </td>
+  </tr>
+  <tr>
+    <td>shuffleAcknoReply</td>
+    <td>
+      empty 
+    </td>
+  </tr>
+</table>
+
+Feedback from TA: Duplicate messages can be reused.
 
 
 ## Overall Flow Chart
