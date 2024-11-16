@@ -53,6 +53,9 @@ scala: 2.13.15
 
 More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 
+## Overall Flow Chart
+![image.png](images/flowchart.png)
+
 ## Message
 <table>
   <tr>
@@ -258,6 +261,3 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 
 Feedback from TA: Duplicate messages can be reused.
 
-
-## Overall Flow Chart
-![image.png](images/flowchart.png)
