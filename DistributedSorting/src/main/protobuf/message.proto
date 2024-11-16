@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package message;
+
+service Message {
+  rpc registerWorker (RegisterWorkerRequest) returns (RegisterWorkerReply) {}
+  rpc calculatePivots (CalculatePivotRequest) returns (CalculatePivotReply) {}
+  rpc partitionEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
+  rpc startShuffling (StartShufflingRequest) returns (StartShufflingReply) {}
+  rpc sendDataToWorker (SendDataRequest) returns (EmptyAckMsg) {}
+  rpc shuffleAck (ShuffleAckRequest) returns (EmptyAckMsg) {}
+  rpc mergeEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
+}
+
+message RegisterWorkerRequest {
+  string workerIP = 2;
+  int32  workerID = 1;
+}
+
+message RegisterWorkerReply {
+  int32 totalWorkerCount = 1;
+}
+
+message CalculatePivotRequest {
+  int32 workerID = 1;
+  repeated string sampleData = 2;
+}
+
+message CalculatePivotReply {
+  map<int32, string> workerIPs = 1;
+  map<string, int32> key2Worker = 2;
+}
+
+message PhaseCompleteNotification {
+  int32 workerID = 1;
+}
+
+message EmptyAckMsg {
+}
+
+message StartShufflingRequest {
+  int32 receiver = 1;
+}
+
+message StartShufflingReply {
+}
+
+message SendDataRequest {
+  repeated string data = 2;
+  int32 source = 1;
+}
+
+message ShuffleAckRequest {
+  int32 source = 1;
+}
+
+
+
+
