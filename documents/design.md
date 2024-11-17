@@ -152,7 +152,7 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 <table>
   <tr>
     <th rowspan="1">rpc</th>
-    <th colspan="2">startShuffling : signals to the master that merging by each worker is complete
+    <th colspan="2">startShuffling : start shuffling
     </th>
   </tr>
   <tr>
@@ -174,7 +174,7 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 <table>
   <tr>
     <th rowspan="1">rpc</th>
-    <th colspan="2">startShuffling : signals to the master that merging by each worker is complete
+    <th colspan="2">mergeEndMsg : signals to the master that merging by each worker is complete
     </th>
   </tr>
   <tr>
