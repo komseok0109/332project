@@ -126,8 +126,8 @@ object FileTransferClient {
 
 ```
 
-![image.png](image.png)
+![image.png](images/gRPC_file_1.png)
 
-![image.png](image%201.png)
+![image.png](images/gRPC_file_2.png)
 
-![image.png](image%202.png)
+![image.png](images/gRPC_file_3.png)
