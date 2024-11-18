@@ -1,17 +1,24 @@
 import io.grpc.ServerBuilder
 import scala.concurrent.{ExecutionContext, Future}
+import com.typesafe.scalalogging.LazyLogging
 import message._
+import utils._
 
-object Master {
+object Master extends LazyLogging {
   def main(args: Array[String]): Unit  = {
-    val server = new Master(ExecutionContext.global)
-    println(args(1))
-    server.start()
-    server.blockUntilShutdown()
+    ArgumentParser.parseMasterArgs(args) match {
+      case Some(config) =>
+        logger.info("Starting master with configuration: " + config)
+        val master = new Master(ExecutionContext.global, config.numWorkers)
+        master.start()
+        master.blockUntilShutdown()
+      case None =>
+        logger.error("Invalid arguments.")
+    }
   }
 }
 
-class Master(executionContext: ExecutionContext) { self =>
+class Master(executionContext: ExecutionContext, numWorkers: Int) extends LazyLogging { self =>
   private[this] var server: io.grpc.Server = null
 
   def start(): Unit = {
@@ -19,11 +26,11 @@ class Master(executionContext: ExecutionContext) { self =>
       .addService(MessageGrpc.bindService(new MessageImpl, executionContext))
       .build()
       .start()
-    println("Server started, listening on " + 50051)
+    logger.info("Server started, listening on " + 50051)
     sys.addShutdownHook {
-      System.err.println("*** shutting down gRPC server since JVM is shutting down")
+      logger.warn("*** shutting down gRPC server since JVM is shutting down")
       self.stop()
-      System.err.println("*** server shut down")
+      logger.warn("*** server shut down")
     }
   }
 
