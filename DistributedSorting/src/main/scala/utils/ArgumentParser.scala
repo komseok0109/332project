@@ -15,7 +15,7 @@ object ArgumentParser extends LazyLogging {
     val builder = OParser.builder[MasterConfig]
     val parser = {
       import builder._
-      OParser.sequence
+      OParser.sequence(
         programName("Master"),
         head("Master", "1.0"),
         arg[Int]("<# of workers>")

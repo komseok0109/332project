@@ -1,8 +1,12 @@
-import io.grpc.ServerBuilder
+import io.grpc._
+import java.util.concurrent.atomic._
+import scala.collection.concurrent._
 import scala.concurrent.{ExecutionContext, Future}
 import com.typesafe.scalalogging.LazyLogging
 import message._
 import utils._
+
+import java.util.concurrent.atomic.AtomicInteger
 
 object Master extends LazyLogging {
   def main(args: Array[String]): Unit  = {
@@ -20,6 +24,8 @@ object Master extends LazyLogging {
 
 class Master(executionContext: ExecutionContext, numWorkers: Int) extends LazyLogging { self =>
   private[this] var server: io.grpc.Server = null
+  private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
+  private val workerIDCounter = new AtomicInteger(0)
 
   def start(): Unit = {
     server = ServerBuilder.forPort(50051)
@@ -35,7 +41,7 @@ class Master(executionContext: ExecutionContext, numWorkers: Int) extends LazyLo
   }
 
 
-  def stop(): Unit = {
+  private def stop(): Unit = {
     if (server != null) {
       server.shutdown()
     }
@@ -48,12 +54,15 @@ class Master(executionContext: ExecutionContext, numWorkers: Int) extends LazyLo
   }
 
   private class MessageImpl extends MessageGrpc.Message {
-    override def registerWorker(request: RegisterWorkerRequest): Future[RegisterWorkerReply] = ???
+    override def registerWorker(request: RegisterWorkerRequest): Future[RegisterWorkerReply] = {
+      val workerIDToAssign = workerIDCounter.getAndIncrement()
+      registeredWorkersIP.put(workerIDToAssign, request.workerIP)
+      logger.info(s"Worker(${request.workerIP}) has registered with ID $workerIDToAssign")
+      Future.successful(RegisterWorkerReply(totalWorkerCount = numWorkers, workerID = workerIDToAssign))
+    }
     override def calculatePivots(request: CalculatePivotRequest): Future[CalculatePivotReply] = ???
     override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
     override def startShuffling(request: StartShufflingRequest): Future[StartShufflingReply] = ???
-    override def sendDataToWorker(request: SendDataRequest): Future[EmptyAckMsg] = ???
-    override def shuffleAck(request: ShuffleAckRequest): Future[EmptyAckMsg] = ???
     override def mergeEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
   }
 }
