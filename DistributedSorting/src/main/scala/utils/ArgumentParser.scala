@@ -2,6 +2,7 @@ package utils
 
 import scopt.OParser
 import com.typesafe.scalalogging.LazyLogging
+import scala.annotation.tailrec
 
 case class MasterConfig(numWorkers: Int = 1)
 
@@ -14,7 +15,7 @@ object ArgumentParser extends LazyLogging {
     val builder = OParser.builder[MasterConfig]
     val parser = {
       import builder._
-      OParser.sequence(
+      OParser.sequence
         programName("Master"),
         head("Master", "1.0"),
         arg[Int]("<# of workers>")
@@ -26,6 +27,7 @@ object ArgumentParser extends LazyLogging {
   }
 
   def parseWorkerArgs(args: Array[String]): Option[WorkerConfig] = {
+    @tailrec
     def parseArguments(args: List[String], masterIP: String, inputDirs: Seq[String], outputDir: String,
                   invalidArguments: Seq[String]): (String, Seq[String], String, Seq[String]) = {
       args match {
