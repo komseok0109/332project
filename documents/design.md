@@ -92,15 +92,15 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
   </tr>
   <tr>
     <th rowspan="4">message</th>
-    <td rowspan="2">RegisterWorkerRequest<br>(worker -> master)</td>
+    <td rowspan="1">RegisterWorkerRequest<br>(worker -> master)</td>
     <td><code>string workerIP</code> : [worker's IP address]</td>
   </tr>
   <tr>
-    <td><code>int32 workerID</code> : [worker's ID number]</td>
-  </tr>
-  <tr>
-    <td>RegisterWorkerReply<br>(master -> worker)</td>
+    <td rowspan="2">RegisterWorkerReply<br>(master -> worker)</td>
     <td><code>int32 totalWorkerCount</code> : [total number of workers]</td>
+  </tr>
+    <tr>
+    <td><code>int32 workerID</code> : [worker's ID number]</td>
   </tr>
 </table>
 

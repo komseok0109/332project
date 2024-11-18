@@ -7,18 +7,21 @@ service Message {
   rpc calculatePivots (CalculatePivotRequest) returns (CalculatePivotReply) {}
   rpc partitionEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
   rpc startShuffling (StartShufflingRequest) returns (StartShufflingReply) {}
-  rpc sendDataToWorker (SendDataRequest) returns (EmptyAckMsg) {}
-  rpc shuffleAck (ShuffleAckRequest) returns (EmptyAckMsg) {}
   rpc mergeEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
 }
 
+service ShufflingMessage {
+  rpc sendDataToWorker (SendDataRequest) returns (EmptyAckMsg) {}
+  rpc shuffleAck (ShuffleAckRequest) returns (EmptyAckMsg) {}
+}
+
 message RegisterWorkerRequest {
-  string workerIP = 2;
-  int32  workerID = 1;
+  string workerIP = 1;
 }
 
 message RegisterWorkerReply {
-  int32 totalWorkerCount = 1;
+  int32 totalWorkerCount = 2;
+  int32 workerID = 1;
 }
 
 message CalculatePivotRequest {
