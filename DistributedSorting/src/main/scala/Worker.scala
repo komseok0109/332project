@@ -24,40 +24,43 @@ class Worker(masterHost: String, masterPort: Int,
   extends LazyLogging {
   private val channel = ManagedChannelBuilder
     .forAddress(masterHost, masterPort).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build
-  private val stub = MessageGrpc.stub(channel)
+  private val stub = MessageGrpc.blockingStub(channel)
   private var workerID: Option[Int] = None
   private var totalWorkerCount: Option[Int] = None
 
   def run(): Unit = {
     logger.info("Connect to Server: " + masterHost + ":" + masterPort)
     try {
-      registerWithMaster().foreach(_ => shutDownChannel())
+      registerWithMaster()
     } catch {
       case e: Exception =>
         logger.error(s"Registration Error: ${e.getMessage}")
         shutDownChannel()
         System.exit(1)
     }
+    shutDownChannel()
   }
 
   private def shutDownChannel(): Unit = {
     channel.shutdownNow()
   }
 
-  private def registerWithMaster(): Future[Unit] = {
-    val request = RegisterWorkerRequest(workerIP = "")
-    val futureReply = stub.registerWorker(request)
-    futureReply
-      .map { reply =>
-        workerID = Some(reply.workerID)
-        totalWorkerCount = Some(reply.totalWorkerCount)
-        logger.info(s"Successfully registered with worker ID: ${reply.workerID} and total workers: ${reply.totalWorkerCount}")
-      }
-      .recover {
-        case e: Exception =>
-          logger.error(s"Failed to register worker: ${e.getMessage}")
-          throw new RuntimeException("Worker registration failed, terminating program")
-      }
+  private def registerWithMaster(): Unit = {
+    IPUtils.getMachineIP match {
+      case "unknown" => throw new RuntimeException("Failed to get IP")
+      case ip =>
+        val request = RegisterWorkerRequest(workerIP = ip)
+        try {
+          val reply = stub.registerWorker(request)
+          workerID = Some(reply.workerID)
+          totalWorkerCount = Some(reply.totalWorkerCount)
+          logger.info(s"Successfully registered with worker ID: ${reply.workerID} and total workers: ${reply.totalWorkerCount}")
+        } catch {
+          case e: Exception =>
+            logger.error(s"Failed to register worker: ${e.getMessage}")
+            throw new RuntimeException("Worker registration failed, terminating program")
+        }
+    }
   }
 }
 
