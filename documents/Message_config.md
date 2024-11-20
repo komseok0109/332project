@@ -5,24 +5,21 @@
         
         Request (W → M)
         
-        - String worker_IP
+        - String workerIP
         
-        Reply (M → W)
-        
-        - bool  isSamplingStarted
-    - Worker의 sample data를 Master에 전송 (Worker → Master)
-        
-        Request (W → M)
-        
-        - int workerNumber
-        - String samplingData
-    
-    - Master의 정보와 key range, Worker 순서 (Master → Worker)
-        
-        Request (M → W)
+        Reply: shuffling에 이용하기 위해 각 worker들의 IP 주소 (M → W)
         
         - int totalWorkerNumber
         - Map { int (workerNumber) → String (worker_IP) }
+    - Sampling Phase
+        
+        Request: Worker의 sample data를 Master에 전송 (W → M)
+        
+        - int workerNumber
+        - String samplingData
+        
+        Reply: Master의 정보와 key range, Worker 순서 (M → W)
+
         - Map { Pair (Key range) → int (workerNumber) }
     
 2. Block sorting & Partitioning
