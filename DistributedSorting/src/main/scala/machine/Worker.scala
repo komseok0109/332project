@@ -1,9 +1,12 @@
-import io.grpc._
+package machine
+
 import com.typesafe.scalalogging.LazyLogging
+import io.grpc._
 import message._
 import utils._
-import scala.concurrent._
+
 import scala.collection.concurrent._
+import scala.concurrent._
 import scala.io.Source
 import scala.util.Random
 
@@ -29,7 +32,7 @@ class Worker(masterHost: String, masterPort: Int,
   private val channel = ManagedChannelBuilder
     .forAddress(masterHost, masterPort).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build
   private val stub = MessageGrpc.blockingStub(channel)
-  //lazy private val filePaths = IOUtils.getFilePathsFromDirectories(inputDirectories.toList)
+  lazy private val filePaths = IOUtils.getFilePathsFromDirectories(inputDirectories.toList)
   private var workerID: Option[Int] = None
   private var totalWorkerCount: Option[Int] = None
   private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
