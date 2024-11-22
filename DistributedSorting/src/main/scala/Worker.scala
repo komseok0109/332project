@@ -138,7 +138,7 @@ class Worker(masterHost: String, masterPort: Int,
   }
 
   private def getRandomSample(sampleSize: Int = 25): Seq[String] = {
-    val source = Source.fromFile("/home/white/64/partiton2")
+    val source = Source.fromFile("/home/white/64/partition2")
     try {
       val lines = source.getLines().toSeq
       if (lines.size < sampleSize)
