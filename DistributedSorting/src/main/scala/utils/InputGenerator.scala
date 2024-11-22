@@ -9,22 +9,18 @@ import scala.concurrent.duration._
 
 object InputGenerator {
   def main(args: Array[String]): Unit = {
-    val directories = List("DistributedSorting/input1", "DistributedSorting/input2", "DistributedSorting/input3")
-    val filePaths = getFilePathsFromDirectories(directories)
+    val filePaths = getFilePathsFromDirectories(args.toList)
     getInput(filePaths)
   }
 
   def getInput(filePathList: List[String]): Unit = {
-    // 출력 디렉토리 생성
     val outputDir = new File("DistributedSorting/output")
     if (!outputDir.exists()) outputDir.mkdirs()
 
-    // 고정 크기의 스레드 풀 생성
     val availableProcessors = Runtime.getRuntime.availableProcessors()
     implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(availableProcessors))
 
     try {
-      // 파일별 Iterator 처리
       filePathList.zipWithIndex.foreach { case (oneFile, fileIndex) =>
         val source = Source.fromFile(oneFile)
         try {
