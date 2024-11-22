@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.grpc._
 import message._
 import utils._
-
+import functionality._
 import scala.collection.concurrent._
 import scala.concurrent._
 import scala.io.Source
@@ -101,7 +101,7 @@ class Worker(masterHost: String, masterPort: Int,
   private def sendSamplesToMaster(): Unit = {
     assert(workerID.nonEmpty && totalWorkerCount.nonEmpty)
     try {
-      val request = CalculatePivotRequest(workerID = workerID.get, sampleData = getRandomSample())
+      val request = CalculatePivotRequest(workerID = workerID.get, sampleData = Sample.sampleFile(filePaths))
       val reply = stub.calculatePivots(request)
       reply.workerIPs.foreach( mapping => registeredWorkersIP.put(mapping._1, mapping._2))
       reply.keyRangeMapping.foreach(mapping => {

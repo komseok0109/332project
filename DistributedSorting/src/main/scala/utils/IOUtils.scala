@@ -16,7 +16,7 @@ object IOUtils extends LazyLogging {
           .map(_.toString)
           .toList
       } else {
-        logger.warn(s"Warning: $dir is not a valid directory or does not exist.")
+        logger.error(s"$dir is not a valid directory or does not exist.")
         throw new IllegalArgumentException(s"Invalid directory: $dir")
       }
     }
