@@ -13,6 +13,7 @@ lazy val root = (project in file("."))
       "org.apache.logging.log4j" % "log4j-api" % "2.20.0",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.5",
       "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.20.0",
+      "org.typelevel" %% "cats-effect" % "3.5.0"
     ),
     Compile / PB.targets := Seq(
       scalapb.gen(flatPackage = true) -> (Compile / sourceManaged).value / "scalapb"

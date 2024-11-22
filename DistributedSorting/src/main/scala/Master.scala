@@ -1,45 +1,49 @@
 import io.grpc._
 import java.util.concurrent.atomic._
+import java.util.concurrent.CountDownLatch
 import scala.collection.concurrent._
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent._
 import com.typesafe.scalalogging.LazyLogging
 import message._
 import utils._
-
-import java.util.concurrent.atomic.AtomicInteger
 
 object Master extends LazyLogging {
   def main(args: Array[String]): Unit  = {
     ArgumentParser.parseMasterArgs(args) match {
       case Some(config) =>
         logger.info("Starting master with configuration: " + config)
-        val master = new Master(ExecutionContext.global, config.numWorkers)
+        val master = new Master(ExecutionContext.global, config.numWorkers)(ExecutionContext.global)
         master.start()
         master.blockUntilShutdown()
+        master.printResult()
       case None =>
         logger.error("Invalid arguments.")
     }
   }
 }
 
-class Master(executionContext: ExecutionContext, numWorkers: Int) extends LazyLogging { self =>
+class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: ExecutionContext)
+  extends LazyLogging { self =>
+  private val PORT = 50051
   private[this] var server: io.grpc.Server = null
   private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
-  private val workerIDCounter = new AtomicInteger(0)
+  private val workerIDCounter: AtomicInteger = new AtomicInteger(1)
+  private val receivedSamples: TrieMap[Int, Seq[String]] = TrieMap()
+  private val workerKeyRanges: TrieMap[Int, (String, String)] = TrieMap()
 
   def start(): Unit = {
-    server = ServerBuilder.forPort(50051)
+    server = ServerBuilder.forPort(PORT)
       .addService(MessageGrpc.bindService(new MessageImpl, executionContext))
+      .asInstanceOf[ServerBuilder[_]]
       .build()
       .start()
-    logger.info("Server started, listening on " + 50051)
+    logger.info("Server started, listening on " + PORT)
     sys.addShutdownHook {
-      logger.warn("*** shutting down gRPC server since JVM is shutting down")
+      logger.info("*** shutting down gRPC server since JVM is shutting down")
       self.stop()
-      logger.warn("*** server shut down")
+      logger.info("*** server shut down")
     }
   }
-
 
   private def stop(): Unit = {
     if (server != null) {
@@ -54,15 +58,57 @@ class Master(executionContext: ExecutionContext, numWorkers: Int) extends LazyLo
   }
 
   private class MessageImpl extends MessageGrpc.Message {
+    private val samplingLatch: CountDownLatch = new CountDownLatch(numWorkers)
+    private val mergeAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
+    private val partitionAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
+
     override def registerWorker(request: RegisterWorkerRequest): Future[RegisterWorkerReply] = {
-      val workerIDToAssign = workerIDCounter.getAndIncrement()
-      registeredWorkersIP.put(workerIDToAssign, request.workerIP)
-      logger.info(s"Worker(${request.workerIP}) has registered with ID $workerIDToAssign")
-      Future.successful(RegisterWorkerReply(totalWorkerCount = numWorkers, workerID = workerIDToAssign))
+      if (registeredWorkersIP.size >= numWorkers) {
+        logger.error(s"Worker registration failed: Maximum worker limit ($numWorkers) reached.")
+        Future.failed(new IllegalStateException(s"Maximum worker limit ($numWorkers) reached."))
+      } else {
+        val workerIDToAssign = workerIDCounter.getAndIncrement()
+        registeredWorkersIP.put(workerIDToAssign, request.workerIP)
+        logger.info(s"Worker(${request.workerIP}) has registered with ID $workerIDToAssign")
+        Future.successful(RegisterWorkerReply(totalWorkerCount = numWorkers, workerID = workerIDToAssign))
+      }
     }
-    override def calculatePivots(request: CalculatePivotRequest): Future[CalculatePivotReply] = ???
-    override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
+    override def calculatePivots(request: CalculatePivotRequest): Future[CalculatePivotReply] = {
+      receivedSamples.put(request.workerID, request.sampleData)
+      logger.info(s"Sample data from ${request.workerID} received")
+      samplingLatch.countDown()
+      samplingLatch.await()
+      assert(receivedSamples.size == numWorkers, s"Registered Workers < # of Workers")
+      assert(samplingLatch.getCount == 0)
+      val sortedSamples = receivedSamples.values.flatten.toList.sorted
+      val rangeStep = sortedSamples.length / numWorkers
+      val keyRanges: Seq[WorkerIDKeyRangeMapping] = for {
+        i <- 0 until numWorkers
+        startKey = if (i == 0) " " * 10 else sortedSamples(i * rangeStep)
+        endKey = if (i == numWorkers - 1) "~" * 10 else sortedSamples((i + 1) * rangeStep - 1)
+      } yield WorkerIDKeyRangeMapping(i + 1, startKey, endKey)
+      Future.successful(CalculatePivotReply(workerIPs = registeredWorkersIP.toMap, keyRangeMapping = keyRanges))
+    }
+    override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      partitionAckLatch.countDown()
+      partitionAckLatch.await()
+      assert(partitionAckLatch.getCount == 0)
+      Future.successful(EmptyAckMsg())
+    }
     override def startShuffling(request: StartShufflingRequest): Future[StartShufflingReply] = ???
-    override def mergeEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
+    override def mergeEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      mergeAckLatch.countDown()
+      mergeAckLatch.await()
+      assert(mergeAckLatch.getCount == 0)
+      server.shutdown()
+      Future.successful(EmptyAckMsg())
+    }
+  }
+
+  def printResult(): Unit = {
+    logger.info("All workers have successfully completed!")
+    println(IPUtils.getMachineIP + s":${PORT}")
+    registeredWorkersIP.values.foreach(ip => print(ip + " "))
+    println()
   }
 }

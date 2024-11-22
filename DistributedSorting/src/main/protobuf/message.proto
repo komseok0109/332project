@@ -29,9 +29,15 @@ message CalculatePivotRequest {
   repeated string sampleData = 2;
 }
 
+message WorkerIDKeyRangeMapping {
+  int32 workerID = 1;
+  string startKey = 2;
+  string endKey = 3;
+}
+
 message CalculatePivotReply {
   map<int32, string> workerIPs = 1;
-  map<string, int32> key2Worker = 2;
+  repeated WorkerIDKeyRangeMapping keyRangeMapping = 2;
 }
 
 message PhaseCompleteNotification {
