@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 object InputGenerator {
   def main(args: Array[String]): Unit = {
     val inputGenerator = new InputGenerator(args.toList)
-
+    inputGenerator.generateInputs()
   }
 }
 
