@@ -29,6 +29,7 @@ class Worker(masterHost: String, masterPort: Int,
   private val channel = ManagedChannelBuilder
     .forAddress(masterHost, masterPort).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build
   private val stub = MessageGrpc.blockingStub(channel)
+  lazy private val filePaths = IOUtils.getFilePathsFromDirectories(inputDirectories.toList)
   private var workerID: Option[Int] = None
   private var totalWorkerCount: Option[Int] = None
   private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
@@ -57,7 +58,7 @@ class Worker(masterHost: String, masterPort: Int,
       notifyMasterPartitionDone()
     } catch {
       case e: Exception =>
-        logger.error(s"Parrtition Error: ${e.getMessage}")
+        logger.error(s"Partition Error: ${e.getMessage}")
         shutDownChannel()
         System.exit(1)
     }
@@ -137,7 +138,7 @@ class Worker(masterHost: String, masterPort: Int,
   }
 
   private def getRandomSample(sampleSize: Int = 25): Seq[String] = {
-    val source = Source.fromFile("partition2.txt")
+    val source = Source.fromFile("/home/white/64/partiton2")
     try {
       val lines = source.getLines().toSeq
       if (lines.size < sampleSize)
