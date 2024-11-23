@@ -15,10 +15,6 @@ object InputGenerator {
   }
 
   def getInput(filePathList: List[String]): Unit = {
-    // 출력 디렉토리 생성
-    val outputDir = new File("DistributedSorting/output")
-    if (!outputDir.exists()) outputDir.mkdirs()
-
     // 고정 크기의 스레드 풀 생성
     val availableProcessors = Runtime.getRuntime.availableProcessors()
     implicit val ec = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(availableProcessors))
@@ -33,7 +29,9 @@ object InputGenerator {
 
           // 청크 처리
           lineChunks.zipWithIndex.foreach { case (chunk, chunkIndex) =>
-            val chunkFilePath = s"DistributedSorting/output/file${fileIndex}_chunk$chunkIndex.txt"
+            // 원래 파일이 있는 디렉토리 기반으로 출력 파일 경로 생성
+            val originalDir = new File(oneFile).getParent
+            val chunkFilePath = s"$originalDir/file${fileIndex}_$chunkIndex.txt"
 
             // 디렉토리 생성 확인
             val chunkFile = new File(chunkFilePath)
