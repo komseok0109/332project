@@ -122,7 +122,8 @@ class Worker(masterHost: String, masterPort: Int,
     assert(workerID.nonEmpty)
     try {
       val request = PhaseCompleteNotification(workerID = workerID.get)
-      val reply = stub.partitionEndMsg(request)
+      stub.partitionEndMsg(request)
+      logger.info(s"Worker [${workerID.get}] has notified partitioning completed the master successfully.")
     } catch {
       case e: Exception =>
         logger.error(s"Failed to receive partition acknowledgement: ${e.getMessage}")
@@ -134,30 +135,14 @@ class Worker(masterHost: String, masterPort: Int,
     assert(workerID.nonEmpty)
     try {
       val request = PhaseCompleteNotification(workerID = workerID.get)
-      val reply = stub.mergeEndMsg(request)
+      stub.mergeEndMsg(request)
+      logger.info(s"Worker [${workerID.get}] has notified merging completed the master successfully.")
     } catch {
       case e: Exception =>
         logger.error(s"Error during termination: ${e.getMessage}")
         throw new RuntimeException("Termination Error")
     }
   }
-
-  private def getRandomSample(sampleSize: Int = 25): Seq[String] = {
-    val source = Source.fromFile("/home/white/64/partition2")
-    try {
-      val lines = source.getLines().toSeq
-      if (lines.size < sampleSize)
-        throw new IllegalArgumentException(s"File has fewer than $sampleSize lines")
-      val randomLines = Random.shuffle(lines).take(sampleSize)
-      randomLines.map { line =>
-        val key = line.substring(0, 10).trim
-        key
-      }.filter(_.nonEmpty)
-    } finally {
-      source.close()
-    }
-  }
-
 }
 
 
