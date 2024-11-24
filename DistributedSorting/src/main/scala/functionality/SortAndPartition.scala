@@ -7,14 +7,10 @@ import scala.collection.mutable
 import scala.concurrent._
 import java.util.concurrent.Executors
 import scala.concurrent.duration._
+import scala.collection.concurrent._
 
-object ParallelChunkedSorterSplitter{
-  def main(args: Array[String]): Unit = {
-    // 예제 파일 리스트 (실제 코드에서는 외부에서 제공받아야 함)
-    val directories = List("DistributedSorting/input1", "DistributedSorting/input2", "DistributedSorting/input3")
-    val filePaths = getFilePathsFromDirectories(directories)
-
-    val ranges = defaultRanges() // 범위 정의
+object SortAndPartition{
+  def sortAndPartition(filePaths: List[String], keyRanges: TrieMap[Int, (String, String)]): Unit = {
 
     // 고정 크기의 스레드 풀 생성
     val availableProcessors = Runtime.getRuntime.availableProcessors()
@@ -25,7 +21,7 @@ object ParallelChunkedSorterSplitter{
 
       //100MB단위로 끊어서 처리
       val lineIterator = filePaths.iterator.flatMap(filePath => Source.fromFile(filePath).getLines())
-      processChunks(lineIterator, 1000000, ranges, processingFutures)
+      processChunks(lineIterator, 1000000, keyRanges, processingFutures)
 
       // 모든 작업이 완료될 때까지 대기
       Await.result(Future.sequence(processingFutures), Duration.Inf)
@@ -37,7 +33,7 @@ object ParallelChunkedSorterSplitter{
   def processChunks(
                      lineIterator: Iterator[String],
                      chunkSize: Int,
-                     ranges: List[(String, Char => Boolean)],
+                     ranges: TrieMap[Int, (String, String)],
                      processingFutures: mutable.Buffer[Future[Unit]]
                    )(implicit ec: ExecutionContext): Unit = {
     var chunkIndex = 0
