@@ -58,6 +58,8 @@ class Worker(masterHost: String, masterPort: Int,
         System.exit(1)
     }
     try {
+      SortAndPartition.openFileAndProcessing(filePaths, ID2Ranges.toList, outputDirectory, workerID.get)
+      logger.info("Sorting and partitioning have successfully completed")
       notifyMasterPartitionDone()
     } catch {
       case e: Exception =>
