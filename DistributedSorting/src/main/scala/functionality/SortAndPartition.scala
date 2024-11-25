@@ -24,7 +24,7 @@ object SortAndPartition extends LazyLogging {
 
   private def processChunks(filePaths: List[String], keyRanges: List[(Int, (String, String))], outputDir: String,
                             currentWorkerID: Int)(implicit ec: ExecutionContext): Seq[Future[Unit]] = {
-    val chunkSizeInBytes = 100 * 1024 * 1024 // 100MB
+    val chunkSizeInBytes = 10 * 1024 * 1024
     val buffer = mutable.ArrayBuffer[String]()
     var currentChunkSize = 0L
     var chunkIndex = 0
