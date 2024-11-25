@@ -41,7 +41,7 @@ object SortAndPartition extends LazyLogging {
             buffer += lineIterator.next()
           }
           if (buffer.nonEmpty) {
-            processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex, currentWorkerID)
+            processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex, outputDir, currentWorkerID)
             chunkIndex += 1
           }
         }
@@ -53,7 +53,7 @@ object SortAndPartition extends LazyLogging {
         logger.error(s"Error during file($filePath) read: ${e.getMessage}")
     }
   }
-  def processChunk(chunk: Array[String], key2Ranges: List[(Int, (String, String))], filePath: String, chunkIndex: Int, currentWorkerID: Int): Unit = {
+  def processChunk(chunk: Array[String], key2Ranges: List[(Int, (String, String))], filePath: String, chunkIndex: Int, outputDir: String, currentWorkerID: Int): Unit = {
     val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[String]]()
 
     chunk.foreach { line =>
@@ -72,7 +72,7 @@ object SortAndPartition extends LazyLogging {
     linesByRange.foreach { case (key, lines) =>
       val sortedLines = lines.sorted
       val sanitizedFilePath = filePath.replaceAll("[^a-zA-Z0-9.-]", "_")
-      val outputPath = s"output/$key/${sanitizedFilePath}_chunk_$chunkIndex _Worker $currentWorkerID.txt"
+      val outputPath = s"$outputDir/$key/${sanitizedFilePath}_chunk_$chunkIndex _Worker $currentWorkerID.txt"
       val outputFile = new File(outputPath)
 
       val parentDir = outputFile.getParentFile
