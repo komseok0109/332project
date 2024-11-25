@@ -141,9 +141,10 @@ class Worker(masterHost: String, masterPort: Int,
   }
 
   private def shuffle(): Future[Unit] = {
-    val futureList: IndexedSeq[scala.concurrent.Future[io.grpc.ManagedChannel]] = (1 to totalWorkerCount.get).map { i: Int =>
+    val futureList: IndexedSeq[scala.concurrent.Future[io.grpc.ManagedChannel]] =
+      (1 to totalWorkerCount.get).map { i: Int =>
       Future {
-        val filePaths = utils.IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
+        val filePaths = IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
         val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
           .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
         val stub = ShufflingMessageGrpc.blockingStub(channel)
@@ -152,11 +153,13 @@ class Worker(masterHost: String, masterPort: Int,
           val source = Source.fromFile(filePath)
           if (i == workerID.get)
             Files.copy(Paths.get(filePath), Paths.get(s"$outputDirectory"))
-          else
+          else {
             shuffleData(stub, source, i)
+            val request = ShuffleAckRequest(source = workerID.get)
+            stub.shuffleAck(request)
+          }
         })
-        val request = ShuffleAckRequest(source = workerID.get)
-        stub.shuffleAck(request)
+        IOUtils.deleteFiles(filePaths)
         channel.shutdown()
       }
     }

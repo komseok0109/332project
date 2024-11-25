@@ -92,7 +92,7 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
       Future.successful(CalculatePivotReply(workerIPs = registeredWorkersIP.toMap, keyRangeMapping = keyRanges))
     }
     override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
-      logger.info(s"Worker ${request.workerID} has notified that partitioning done")
+      logger.info(s"Worker ${request.workerID} has notified that partitioning is done")
       partitionAckLatch.countDown()
       partitionAckLatch.await()
       assert(partitionAckLatch.getCount == 0)
@@ -100,7 +100,7 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
     }
 
     override def shufflingEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
-      logger.info(s"Worker ${request.workerID} has notified that shuffling done")
+      logger.info(s"Worker ${request.workerID} has notified that shuffling is done")
       shufflingAckLatch.countDown()
       shufflingAckLatch.await()
       assert(shufflingAckLatch.getCount == 0, "latch's value is not 0")
