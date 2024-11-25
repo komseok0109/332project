@@ -24,10 +24,9 @@ object Sample extends LazyLogging {
             val source = Source.fromFile(filePath)
             val linesList = source.getLines().map(_.splitAt(10)).toList
             source.close()
-            val keyArray = linesList.map(_._1).toArray
-            for (_ <- 0 until sampleNumOfEachFile) {
-              sampleData.add(keyArray(Random.nextInt(keyArray.length)))
-            }
+            val keyArray = Random.shuffle(linesList.map(_._1))
+            val sampleNumOfFile = Math.min(sampleNumOfEachFile, keyArray.length)
+            keyArray.take(sampleNumOfFile).foreach(sampleData.add)
           } catch {
             case ex: Exception => logger.error(s"Error processing file $filePath: ${ex.getMessage}")
           }

@@ -86,8 +86,8 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
       val rangeStep = sortedSamples.length / numWorkers
       val keyRanges: Seq[WorkerIDKeyRangeMapping] = for {
         i <- 0 until numWorkers
-        startKey = if (i == 0) " " * 10 else sortedSamples((i - 1) * rangeStep)
-        endKey = if (i == numWorkers - 1) "~" * 10 else sortedSamples(i * rangeStep)
+        startKey = if (i == 0) " " * 10 else sortedSamples(i * rangeStep)
+        endKey = if (i == numWorkers - 1) "~" * 10 else sortedSamples((i + 1) * rangeStep)
       } yield WorkerIDKeyRangeMapping(i + 1, startKey, endKey)
 
       Future.successful(CalculatePivotReply(workerIPs = registeredWorkersIP.toMap, keyRangeMapping = keyRanges))

@@ -7,9 +7,7 @@ import utils._
 import functionality._
 import scala.collection.concurrent._
 import scala.concurrent._
-import machine.ShuffleServer
-import java.io.File
-import scala.util.{Failure, Success}
+import scala.concurrent.duration._
 import java.nio.file.{Files, Paths}
 import scala.io.Source
 
@@ -86,6 +84,7 @@ class Worker(masterHost: String, masterPort: Int,
 //    } catch {
 //      case e: Exception =>
 //        logger.error(s"Shuffling Error: ${e.getMessage}")
+//        IOUtils.deleteFiles(IOUtils.getFilePathsFromDirectories(List(outputDirectory)))
 //        shutDownChannel()
 //        System.exit(1)
 //    }
@@ -140,31 +139,43 @@ class Worker(masterHost: String, masterPort: Int,
     }
   }
 
-  private def shuffle(): Future[Unit] = {
-    val futureList: IndexedSeq[scala.concurrent.Future[io.grpc.ManagedChannel]] =
+  private def shuffle(): Unit = {
+    val futureList =
       (1 to totalWorkerCount.get).map { i: Int =>
       Future {
         val filePaths = IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
         val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
           .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
         val stub = ShufflingMessageGrpc.blockingStub(channel)
-
-        filePaths.foreach(filePath => {
-          val source = Source.fromFile(filePath)
-          if (i == workerID.get)
-            Files.copy(Paths.get(filePath), Paths.get(s"$outputDirectory"))
-          else {
-            shuffleData(stub, source, i)
-            val request = ShuffleAckRequest(source = workerID.get)
-            stub.shuffleAck(request)
-          }
-          source.close()
-        })
-        IOUtils.deleteFiles(filePaths)
-        channel.shutdown()
+        try {
+          logger.info(s"Worker $workerID.get: Shuffling started for worker $i.")
+          filePaths.foreach(filePath => {
+            try{
+              val source = Source.fromFile(filePath)
+              if (i == workerID.get)
+                Files.copy(Paths.get(filePath), Paths.get(s"$outputDirectory"))
+              else {
+                shuffleData(stub, source, i)
+                val request = ShuffleAckRequest(source = workerID.get)
+                stub.shuffleAck(request)
+              }
+              source.close()
+            } catch {
+              case e: Exception =>
+                logger.error(s"Worker $workerID.get: Error processing file $filePath, ${e.getMessage}")
+            }
+          })
+          IOUtils.deleteFiles(filePaths)
+        } catch {
+          case e: Exception =>
+            logger.error(s"Worker $workerID.get: Error during shuffle operation for worker $i, ${e.getMessage}")
+        } finally {
+          channel.shutdown()
+          logger.info(s"Worker $workerID.get: Channel shut down for worker $i.")
+        }
       }
     }
-    Future.sequence(futureList).map(_ => ())
+    Await.result(Future.sequence(futureList), Duration.Inf)
   }
 
   private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source, dest: Int): Unit = {

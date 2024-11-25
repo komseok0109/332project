@@ -42,7 +42,7 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
       if (!directory.exists()) {
         directory.mkdirs()
       }
-      val writer = new BufferedWriter(new FileWriter(new File(directory, s"${fileIndex.getAndIncrement()}.txt"), true))
+      val writer = new BufferedWriter(new FileWriter(new File(directory, s"${fileIndex.getAndIncrement()}"), true))
       try {
         request.data.foreach { line =>
           assert(line >= myRange._1 && line <= myRange._2,
