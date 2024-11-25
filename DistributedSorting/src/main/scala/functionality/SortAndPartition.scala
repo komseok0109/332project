@@ -81,14 +81,14 @@ object SortAndPartition extends LazyLogging {
 
   private def processChunk(chunk: Array[String], keyRanges: List[(Int, (String, String))],
                            chunkIndex: Int, outputDir: String, currentWorkerID: Int): Unit = {
-    val linesByRange = new mutable.HashMap[String, mutable.ArrayBuffer[String]]()
+    val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[String]]()
 
     chunk.foreach { line =>
       if (line.nonEmpty) {
         val rangeInfo = findRange(line, keyRanges)
         rangeInfo match {
           case Some((workerId, rangeLabel)) =>
-            val lines = linesByRange.getOrElseUpdate(rangeLabel, mutable.ArrayBuffer[String]())
+            val lines = linesByRange.getOrElseUpdate(workerId, mutable.ArrayBuffer[String]())
             lines += line
           case None =>
             logger.warn(s"Line is not assigned to any range: $line")
