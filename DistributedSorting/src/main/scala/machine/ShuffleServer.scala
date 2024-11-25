@@ -16,7 +16,6 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
     .addService(ShufflingMessageGrpc.bindService(new ShuffleMessageImpl, executionContext))
     .asInstanceOf[ServerBuilder[_]]
     .build()
-  private val fileIndex = new AtomicInteger(0)
   private val ackLatch = new CountDownLatch(totalWorkerNum - 1)
 
   def start(): Unit = {
@@ -42,14 +41,15 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
       if (!directory.exists()) {
         directory.mkdirs()
       }
-      val writer = new BufferedWriter(new FileWriter(new File(directory, s"${fileIndex.getAndIncrement()}"), true))
       try {
+        val writer = new BufferedWriter(new FileWriter(new File(directory, s"${request.fileName}"), true))
         request.data.foreach { line =>
-          assert(line >= myRange._1 && line <= myRange._2,
+          assert(line.splitAt(10)._1 >= myRange._1 && line.splitAt(10)._1 <= myRange._2,
             s"Line '$line' is out of range: ${myRange._1} to ${myRange._2}")
           writer.write(line)
           writer.newLine()
         }
+        writer.close()
         Future.successful(EmptyAckMsg())
       } catch {
         case e: AssertionError =>
@@ -58,8 +58,6 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
         case e: Exception =>
           logger.error(s"Unexpected error: ${e.getMessage}")
           Future.failed(e)
-      } finally {
-        writer.close()
       }
     }
     override def shuffleAck(request: ShuffleAckRequest): Future[EmptyAckMsg] = {

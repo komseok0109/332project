@@ -48,8 +48,8 @@ message EmptyAckMsg {
 }
 
 message SendDataRequest {
-  repeated string data = 2;
-  int32 source = 1;
+  repeated string data = 1;
+  string fileName = 2;
 }
 
 message ShuffleAckRequest {

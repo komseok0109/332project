@@ -8,7 +8,7 @@ import functionality._
 import scala.collection.concurrent._
 import scala.concurrent._
 import scala.concurrent.duration._
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Paths, StandardCopyOption}
 import scala.io.Source
 
 object Worker extends LazyLogging {
@@ -69,7 +69,7 @@ class Worker(masterHost: String, masterPort: Int,
         System.exit(1)
     }
     try {
-      //server.start()
+      server.start()
       notifyMasterPartitionDone()
       logger.info("After partitioning done, shuffling server has started")
     } catch {
@@ -78,17 +78,18 @@ class Worker(masterHost: String, masterPort: Int,
         shutDownChannel()
         System.exit(1)
     }
-//    try {
-//      shuffle()
-//      notifyMasterShufflingDone()
-//    } catch {
-//      case e: Exception =>
-//        logger.error(s"Shuffling Error: ${e.getMessage}")
-//        IOUtils.deleteFiles(IOUtils.getFilePathsFromDirectories(List(outputDirectory)))
-//        shutDownChannel()
-//        System.exit(1)
-//    }
     try {
+      shuffle()
+      notifyMasterShufflingDone()
+    } catch {
+      case e: Exception =>
+        logger.error(s"Shuffling Error: ${e.getMessage}")
+        shutDownChannel()
+        deleteTempDirectories()
+        System.exit(1)
+    }
+    try {
+      deleteTempDirectories()
       notifyMasterMergingDone()
     } catch {
       case e: Exception =>
@@ -112,7 +113,8 @@ class Worker(masterHost: String, masterPort: Int,
           val reply = stub.registerWorker(request)
           workerID = Some(reply.workerID)
           totalWorkerCount = Some(reply.totalWorkerCount)
-          logger.info(s"Successfully registered with worker ID: ${reply.workerID} and total workers: ${reply.totalWorkerCount}")
+          logger.info(s"Successfully registered with worker ID: ${reply.workerID} " +
+            s"and total workers: ${reply.totalWorkerCount}")
         } catch {
           case e: Exception =>
             logger.error(s"Failed to register worker: ${e.getMessage}")
@@ -148,39 +150,44 @@ class Worker(masterHost: String, masterPort: Int,
           .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
         val stub = ShufflingMessageGrpc.blockingStub(channel)
         try {
-          logger.info(s"Worker $workerID.get: Shuffling started for worker $i.")
+          logger.info(s"Worker ${workerID.get}: Shuffling started for worker $i.")
           filePaths.foreach(filePath => {
-            try{
-              val source = Source.fromFile(filePath)
-              if (i == workerID.get)
-                Files.copy(Paths.get(filePath), Paths.get(s"$outputDirectory"))
-              else {
-                shuffleData(stub, source, i)
+            if (i == workerID.get) {
+              try {
+                val sourcePath = Paths.get(filePath)
+                Files.copy(sourcePath, Paths.get(s"$outputDirectory/${sourcePath.getFileName}"),
+                  StandardCopyOption.REPLACE_EXISTING)
+              } catch {
+                case e: Exception => logger.error(s"Error Copying File ${filePath}: ${e.getMessage}")
+              }
+            } else {
+              try {
+                val source = Source.fromFile(filePath)
+                shuffleData(stub, source, i, Paths.get(filePath).getFileName.toString)
                 val request = ShuffleAckRequest(source = workerID.get)
                 stub.shuffleAck(request)
+                source.close()
+              } catch {
+              case e: Exception => logger.error(s"Error Sending File ${filePath}: ${e.getMessage}")
               }
-              source.close()
-            } catch {
-              case e: Exception =>
-                logger.error(s"Worker $workerID.get: Error processing file $filePath, ${e.getMessage}")
             }
           })
-          IOUtils.deleteFiles(filePaths)
         } catch {
           case e: Exception =>
-            logger.error(s"Worker $workerID.get: Error during shuffle operation for worker $i, ${e.getMessage}")
+            logger.error(s"Worker ${workerID.get}: Error during shuffle operation for worker $i, ${e.getMessage}")
         } finally {
           channel.shutdown()
-          logger.info(s"Worker $workerID.get: Channel shut down for worker $i.")
+          logger.info(s"Worker ${workerID.get}: Channel shut down for worker $i.")
         }
       }
     }
     Await.result(Future.sequence(futureList), Duration.Inf)
   }
 
-  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source, dest: Int): Unit = {
+  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source,
+                          dest: Int, fileName: String): Unit = {
     try {
-      val request = SendDataRequest(data = source.getLines().toList, source = workerID.get)
+      val request = SendDataRequest(data = source.getLines().toList, fileName = fileName)
       stub.sendDataToWorker(request)
     } catch {
       case e: Exception =>
@@ -225,6 +232,14 @@ class Worker(masterHost: String, masterPort: Int,
         logger.error(s"Error during termination: ${e.getMessage}")
         throw new RuntimeException("Termination Error")
     }
+  }
+
+  private def deleteTempDirectories(): Unit = {
+    (1 to totalWorkerCount.get).map(i => s"${outputDirectory}/$i").toList.
+      foreach({s =>
+        IOUtils.deleteFiles(IOUtils.getFilePathsFromDirectories(List(s)))
+        Files.delete(Paths.get(s))
+      })
   }
 }
 
