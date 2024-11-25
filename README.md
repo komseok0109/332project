@@ -84,11 +84,11 @@ Distributed Sorting Project
 - Milestone #3: ~~Define gRPC Messages and Fields~~
 - Milestone #4: ~~Select Libraries~~
 - Milestone #5: ~~Implement Master and Worker(communication, command execution)~~
-- Milestone #6: Implement Phase 1 - Sampling
+- Milestone #6: ~~Implement Phase 1 - Sampling~~
 
-- Milestone #7: Implement Phase 2 - Sorting and Partitioning
+- Milestone #7: ~~Implement Phase 2 - Sorting and Partitioning~~
 
-- Milestone #8: Implement Phase 3 - Shuffling
+- Milestone #8: ~~Implement Phase 3 - Shuffling~~
 
 - Milestone #9: Implement Phase 4 - Merging
 - Milestone #10: Implement Testing and Validation
