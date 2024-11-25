@@ -7,6 +7,11 @@ import utils._
 import functionality._
 import scala.collection.concurrent._
 import scala.concurrent._
+import machine.ShuffleServer
+import java.io.File
+import scala.util.{Failure, Success}
+import java.nio.file.{Files, Paths}
+import scala.io.Source
 
 object Worker extends LazyLogging {
   def main(args: Array[String]): Unit = {
@@ -35,7 +40,9 @@ class Worker(masterHost: String, masterPort: Int,
   private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
   private val ID2Ranges: TrieMap[Int, (String, String)] = TrieMap()
   private val Range2IDs: TrieMap[(String, String), Int] = TrieMap()
-
+  private lazy val server: ShuffleServer = new ShuffleServer(executionContext = ec, port = masterPort + workerID.get,
+    outputDirectory = outputDirectory, myRange = ID2Ranges(workerID.get),
+    totalWorkerNum = totalWorkerCount.get, workerID = workerID.get)
   def run(): Unit = {
     logger.info("Connect to Server: " + masterHost + ":" + masterPort)
     try {
@@ -57,10 +64,28 @@ class Worker(masterHost: String, masterPort: Int,
     try {
       SortAndPartition.openFileAndProcessing(filePaths, ID2Ranges.toList, outputDirectory, workerID.get)
       logger.info("Sorting and partitioning have successfully completed")
-      notifyMasterPartitionDone()
     } catch {
       case e: Exception =>
         logger.error(s"Partition Error: ${e.getMessage}")
+        shutDownChannel()
+        System.exit(1)
+    }
+    try {
+      server.start()
+      notifyMasterPartitionDone()
+      logger.info("After partitioning done, shuffling server has started")
+    } catch {
+      case e: Exception =>
+        logger.error(s"Server Error: ${e.getMessage}")
+        shutDownChannel()
+        System.exit(1)
+    }
+    try {
+      shuffle()
+      notifyMasterShufflingDone()
+    } catch {
+      case e: Exception =>
+        logger.error(s"Shuffling Error: ${e.getMessage}")
         shutDownChannel()
         System.exit(1)
     }
@@ -115,8 +140,37 @@ class Worker(masterHost: String, masterPort: Int,
     }
   }
 
-  private def shuffle(): Unit = {
+  private def shuffle(): Future[Unit] = {
+    val futureList: IndexedSeq[scala.concurrent.Future[io.grpc.ManagedChannel]] = (1 to totalWorkerCount.get).map { i: Int =>
+      Future {
+        val filePaths = utils.IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
+        val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
+          .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
+        val stub = ShufflingMessageGrpc.blockingStub(channel)
 
+        filePaths.foreach(filePath => {
+          val source = Source.fromFile(filePath)
+          if (i == workerID.get)
+            Files.copy(Paths.get(filePath), Paths.get(s"$outputDirectory"))
+          else
+            shuffleData(stub, source, i)
+        })
+        val request = ShuffleAckRequest(source = workerID.get)
+        stub.shuffleAck(request)
+        channel.shutdown()
+      }
+    }
+    Future.sequence(futureList).map(_ => ())
+  }
+
+  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source, dest: Int): Unit = {
+    try {
+      val request = SendDataRequest(data = source.getLines().toList, source = workerID.get)
+      stub.sendDataToWorker(request)
+    } catch {
+      case e: Exception =>
+        logger.error(s"Failed to send data from worker ${workerID.get} to $dest: ${e.getMessage}")
+    }
   }
 
   private def notifyMasterPartitionDone(): Unit = {
@@ -129,6 +183,19 @@ class Worker(masterHost: String, masterPort: Int,
       case e: Exception =>
         logger.error(s"Failed to receive partition acknowledgement: ${e.getMessage}")
         throw new RuntimeException("Ack error")
+    }
+  }
+
+  private def notifyMasterShufflingDone(): Unit = {
+    assert(workerID.nonEmpty)
+    try {
+      val request = PhaseCompleteNotification(workerID = workerID.get)
+      stub.shufflingEndMsg(request)
+      logger.info(s"Worker [${workerID.get}] has notified shuffling completed the master successfully.")
+    } catch {
+      case e: Exception =>
+        logger.error(s"Error during shuffling: ${e.getMessage}")
+        throw new RuntimeException("Shuffling Error")
     }
   }
 

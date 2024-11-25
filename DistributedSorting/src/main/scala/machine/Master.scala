@@ -28,18 +28,16 @@ object Master extends LazyLogging {
 class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: ExecutionContext)
   extends LazyLogging { self =>
   private val PORT = 50051
-  private[this] var server: io.grpc.Server = null
+  private[this] val server: io.grpc.Server = ServerBuilder.forPort(PORT)
+    .addService(MessageGrpc.bindService(new MessageImpl, executionContext))
+    .asInstanceOf[ServerBuilder[_]]
+    .build()
   private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
   private val workerIDCounter: AtomicInteger = new AtomicInteger(1)
   private val receivedSamples: TrieMap[Int, Seq[String]] = TrieMap()
-  private val workerKeyRanges: TrieMap[Int, (String, String)] = TrieMap()
 
   def start(): Unit = {
-    server = ServerBuilder.forPort(PORT)
-      .addService(MessageGrpc.bindService(new MessageImpl, executionContext))
-      .asInstanceOf[ServerBuilder[_]]
-      .build()
-      .start()
+    server.start()
     logger.info("Server started, listening on " + PORT)
     sys.addShutdownHook {
       logger.info("*** shutting down gRPC server since JVM is shutting down")
@@ -64,6 +62,7 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
     private val samplingLatch: CountDownLatch = new CountDownLatch(numWorkers)
     private val mergeAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
     private val partitionAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
+    private val shufflingAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
 
     override def registerWorker(request: RegisterWorkerRequest): Future[RegisterWorkerReply] = {
       if (registeredWorkersIP.size >= numWorkers) {
@@ -93,12 +92,21 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
       Future.successful(CalculatePivotReply(workerIPs = registeredWorkersIP.toMap, keyRangeMapping = keyRanges))
     }
     override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      logger.info(s"Worker ${request.workerID} has notified that partitioning done")
       partitionAckLatch.countDown()
       partitionAckLatch.await()
       assert(partitionAckLatch.getCount == 0)
       Future.successful(EmptyAckMsg())
     }
-    override def startShuffling(request: StartShufflingRequest): Future[StartShufflingReply] = ???
+
+    override def shufflingEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      logger.info(s"Worker ${request.workerID} has notified that shuffling done")
+      shufflingAckLatch.countDown()
+      shufflingAckLatch.await()
+      assert(shufflingAckLatch.getCount == 0, "latch's value is not 0")
+      Future.successful(EmptyAckMsg())
+    }
+
     override def mergeEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
       mergeAckLatch.countDown()
       mergeAckLatch.await()

@@ -6,7 +6,7 @@ service Message {
   rpc registerWorker (RegisterWorkerRequest) returns (RegisterWorkerReply) {}
   rpc calculatePivots (CalculatePivotRequest) returns (CalculatePivotReply) {}
   rpc partitionEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
-  rpc startShuffling (StartShufflingRequest) returns (StartShufflingReply) {}
+  rpc shufflingEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
   rpc mergeEndMsg (PhaseCompleteNotification) returns (EmptyAckMsg) {}
 }
 
@@ -45,13 +45,6 @@ message PhaseCompleteNotification {
 }
 
 message EmptyAckMsg {
-}
-
-message StartShufflingRequest {
-  int32 receiver = 1;
-}
-
-message StartShufflingReply {
 }
 
 message SendDataRequest {
