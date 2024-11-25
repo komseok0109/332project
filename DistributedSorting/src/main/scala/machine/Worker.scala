@@ -71,7 +71,7 @@ class Worker(masterHost: String, masterPort: Int,
         System.exit(1)
     }
     try {
-      server.start()
+      //server.start()
       notifyMasterPartitionDone()
       logger.info("After partitioning done, shuffling server has started")
     } catch {
@@ -80,15 +80,15 @@ class Worker(masterHost: String, masterPort: Int,
         shutDownChannel()
         System.exit(1)
     }
-    try {
-      shuffle()
-      notifyMasterShufflingDone()
-    } catch {
-      case e: Exception =>
-        logger.error(s"Shuffling Error: ${e.getMessage}")
-        shutDownChannel()
-        System.exit(1)
-    }
+//    try {
+//      shuffle()
+//      notifyMasterShufflingDone()
+//    } catch {
+//      case e: Exception =>
+//        logger.error(s"Shuffling Error: ${e.getMessage}")
+//        shutDownChannel()
+//        System.exit(1)
+//    }
     try {
       notifyMasterMergingDone()
     } catch {
@@ -158,6 +158,7 @@ class Worker(masterHost: String, masterPort: Int,
             val request = ShuffleAckRequest(source = workerID.get)
             stub.shuffleAck(request)
           }
+          source.close()
         })
         IOUtils.deleteFiles(filePaths)
         channel.shutdown()
