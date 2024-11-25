@@ -1,6 +1,6 @@
 package utils
 
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Paths}
 import scala.jdk.CollectionConverters._
 import com.typesafe.scalalogging.LazyLogging
 import java.io.IOException

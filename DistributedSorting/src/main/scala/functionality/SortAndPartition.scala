@@ -1,7 +1,5 @@
 package functionality
 
-import utils.IOUtils.getFilePathsFromDirectories
-
 import scala.io.Source
 import java.io.{File, PrintWriter, BufferedWriter, FileWriter}
 import scala.collection.mutable
@@ -16,7 +14,6 @@ object SortAndPartition extends LazyLogging {
     val numThreads = Runtime.getRuntime.availableProcessors()
     val executorService = Executors.newFixedThreadPool(numThreads)
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(executorService)
-
     try {
       val processingFutures = processChunks(filePaths, key2Ranges, outputDir, currentWorkerID)
       Await.result(Future.sequence(processingFutures), Duration.Inf)

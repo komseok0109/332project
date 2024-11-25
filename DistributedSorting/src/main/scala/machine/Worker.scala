@@ -7,9 +7,6 @@ import utils._
 import functionality._
 import scala.collection.concurrent._
 import scala.concurrent._
-import scala.io.Source
-import scala.util.Random
-
 
 object Worker extends LazyLogging {
   def main(args: Array[String]): Unit = {
@@ -110,12 +107,16 @@ class Worker(masterHost: String, masterPort: Int,
         ID2Ranges.put(mapping.workerID, (mapping.startKey, mapping.endKey))
         Range2IDs.put((mapping.startKey, mapping.endKey), mapping.workerID)
       })
-      logger.info(s"Successfully get ${registeredWorkersIP} and ${ID2Ranges(workerID.get)}")
+      logger.info(s"Successfully received partition range: ${ID2Ranges(workerID.get)}")
     } catch {
       case e: Exception =>
         logger.error(s"Error during pivot calculation: ${e.getMessage}")
         throw new RuntimeException("Error processing pivot calculation reply")
     }
+  }
+
+  private def shuffle(): Unit = {
+
   }
 
   private def notifyMasterPartitionDone(): Unit = {
