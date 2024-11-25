@@ -3,12 +3,10 @@ package machine
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc._
 import message._
-import utils._
 import java.io._
 
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic._
-import scala.collection.concurrent._
 import scala.concurrent._
 
 class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirectory: String,
