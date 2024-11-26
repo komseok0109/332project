@@ -65,8 +65,8 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
     override def shuffleAck(request: ShuffleAckRequest): Future[EmptyAckMsg] = {
       logger.info(s"Worker ${request.source} has sent all data to worker $workerID")
       ackLatch.countDown()
-      if (ackLatch.getCount == 0)
-        server.shutdown()
+      ackLatch.await()
+      server.shutdown()
       Future.successful(EmptyAckMsg())
     }
   }
