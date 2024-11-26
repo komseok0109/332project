@@ -199,6 +199,7 @@ class Worker(masterHost: String, masterPort: Int,
           else None
         }.toList
         val request = SendDataRequest(data = chunkData, fileName = fileName)
+        logger.info("Data is ready to sent")
         stub.sendDataToWorker(request)
       }
     } catch {
