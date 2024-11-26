@@ -37,6 +37,7 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
 
   private class ShuffleMessageImpl extends ShufflingMessageGrpc.ShufflingMessage {
     override def sendDataToWorker(request: SendDataRequest): Future[EmptyAckMsg] = {
+      logger.info("Received Data")
       val directory = new File(outputDirectory)
       if (!directory.exists()) {
         directory.mkdirs()
@@ -50,6 +51,7 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
           writer.newLine()
         }
         writer.close()
+        logger.info("Saved All Data")
         Future.successful(EmptyAckMsg())
       } catch {
         case e: AssertionError =>

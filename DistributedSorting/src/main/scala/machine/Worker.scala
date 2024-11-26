@@ -201,6 +201,7 @@ class Worker(masterHost: String, masterPort: Int,
         val request = SendDataRequest(data = chunkData, fileName = fileName)
         logger.info("Data is ready to sent")
         stub.sendDataToWorker(request)
+        logger.info("Server has received the data")
       }
     } catch {
       case e: Exception =>
