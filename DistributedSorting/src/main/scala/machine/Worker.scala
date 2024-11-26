@@ -142,13 +142,13 @@ class Worker(masterHost: String, masterPort: Int,
   }
 
   private def shuffle(): Unit = {
-    val futureList =
+    val futureList = {
       (1 to totalWorkerCount.get).map { i: Int =>
       Future {
         val filePaths = IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
         val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
           .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-        val stub = ShufflingMessageGrpc.stub(channel)
+        val stub = ShufflingMessageGrpc.blockingStub(channel)
         try {
           logger.info(s"Worker ${workerID.get}: Shuffling started for worker $i.")
           filePaths.foreach(filePath => {
@@ -182,13 +182,19 @@ class Worker(masterHost: String, masterPort: Int,
         } finally {
           channel.shutdown()
           logger.info(s"Worker ${workerID.get}: Channel shut down for worker $i.")
-        }
+        }}
       }
     }
-    Await.result(Future.sequence(futureList), Duration.Inf)
+    val MAX_BATCH_SIZE = 5
+    val batches = futureList.grouped(MAX_BATCH_SIZE) // maxBatchSize 크기로 나누기
+    batches.foreach { batch =>
+      Await.result(Future.sequence(batch), Duration.Inf)
+    }
   }
 
-  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageStub, source: Source,
+
+
+  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source,
                           dest: Int, fileName: String): Unit = {
     try {
       val LINES_PER_CHUNK = 40000
@@ -201,6 +207,7 @@ class Worker(masterHost: String, masterPort: Int,
         val request = SendDataRequest(data = chunkData, fileName = fileName)
         logger.info("Data is ready to sent")
         stub.sendDataToWorker(request)
+        logger.info("Server has received the data")
       }
     } catch {
       case e: Exception =>
