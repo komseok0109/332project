@@ -85,11 +85,11 @@ class Worker(masterHost: String, masterPort: Int,
       case e: Exception =>
         logger.error(s"Shuffling Error: ${e.getMessage}")
         shutDownChannel()
-        //deleteTempDirectories()
+        deleteTempDirectories()
         System.exit(1)
     }
     try {
-      //deleteTempDirectories()
+      deleteTempDirectories()
       notifyMasterMergingDone()
     } catch {
       case e: Exception =>
@@ -141,7 +141,7 @@ class Worker(masterHost: String, masterPort: Int,
     }
   }
 
-  private def shuffle(): Unit = {
+  private def shuffle(): Unit = {2
     val futureList =
       (1 to totalWorkerCount.get).map { i: Int =>
       Future {
@@ -170,8 +170,12 @@ class Worker(masterHost: String, masterPort: Int,
               }
             }
           })
-          val request = ShuffleAckRequest(source = workerID.get)
-          stub.shuffleAck(request)
+          try {
+            val request = ShuffleAckRequest(source = workerID.get)
+            stub.shuffleAck(request)
+          } catch {
+            case e: Exception => logger.error(s"Error shuffling acknowledgement: ${e.getMessage}")
+          }
         } catch {
           case e: Exception =>
             logger.error(s"Worker ${workerID.get}: Error during shuffle operation for worker $i, ${e.getMessage}")

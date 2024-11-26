@@ -16,7 +16,7 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
     .addService(ShufflingMessageGrpc.bindService(new ShuffleMessageImpl, executionContext))
     .asInstanceOf[ServerBuilder[_]]
     .build()
-  private val ackLatch = new CountDownLatch(totalWorkerNum - 1)
+  private val ackLatch = new CountDownLatch(totalWorkerNum)
 
   def start(): Unit = {
     server.start()
