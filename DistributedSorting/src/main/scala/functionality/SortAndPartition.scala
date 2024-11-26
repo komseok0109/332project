@@ -65,7 +65,7 @@ object SortAndPartition extends LazyLogging {
             val lines = linesByRange.getOrElseUpdate(key._1, mutable.ArrayBuffer[String]())
             lines += line
           case None =>
-            logger.warn(s"Line is not assigned to any range: $line")
+            //logger.warn(s"Line is not assigned to any range: $line")
         }
       }
     }
