@@ -9,7 +9,7 @@ import scala.collection.concurrent._
 import scala.concurrent._
 import scala.concurrent.duration._
 import java.nio.file.{Files, Paths, StandardCopyOption}
-import scala.io.Source
+import scala.io.{Source, BufferedSource}
 
 object Worker extends LazyLogging {
   def main(args: Array[String]): Unit = {
@@ -162,7 +162,7 @@ class Worker(masterHost: String, masterPort: Int,
               }
             } else {
               try {
-                val source = Source.fromFile(filePath)
+                val source: BufferedSource = Source.fromFile(filePath)
                 shuffleData(stub, source, i, Paths.get(filePath).getFileName.toString)
                 val request = ShuffleAckRequest(source = workerID.get)
                 stub.shuffleAck(request)
@@ -187,8 +187,12 @@ class Worker(masterHost: String, masterPort: Int,
   private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source,
                           dest: Int, fileName: String): Unit = {
     try {
-      val request = SendDataRequest(data = source.getLines().toList, fileName = fileName)
-      stub.sendDataToWorker(request)
+      val LINES_PER_CHUNK = 40000
+      while (source.getLines().hasNext) {
+        val chunkData = source.getLines().take(LINES_PER_CHUNK).toList
+        val request = SendDataRequest(data = chunkData, fileName = fileName)
+        stub.sendDataToWorker(request)
+      }
     } catch {
       case e: Exception =>
         logger.error(s"Failed to send data from worker ${workerID.get} to $dest: ${e.getMessage}")
