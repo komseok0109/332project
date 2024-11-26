@@ -9,7 +9,7 @@ import scala.collection.concurrent._
 import scala.concurrent._
 import scala.concurrent.duration._
 import java.nio.file.{Files, Paths, StandardCopyOption}
-import scala.io.{Source, BufferedSource}
+import scala.io.Source
 
 object Worker extends LazyLogging {
   def main(args: Array[String]): Unit = {
@@ -85,11 +85,11 @@ class Worker(masterHost: String, masterPort: Int,
       case e: Exception =>
         logger.error(s"Shuffling Error: ${e.getMessage}")
         shutDownChannel()
-        deleteTempDirectories()
+        //deleteTempDirectories()
         System.exit(1)
     }
     try {
-      deleteTempDirectories()
+      //deleteTempDirectories()
       notifyMasterMergingDone()
     } catch {
       case e: Exception =>
@@ -162,7 +162,7 @@ class Worker(masterHost: String, masterPort: Int,
               }
             } else {
               try {
-                val source: BufferedSource = Source.fromFile(filePath)
+                val source = Source.fromFile(filePath)
                 shuffleData(stub, source, i, Paths.get(filePath).getFileName.toString)
                 val request = ShuffleAckRequest(source = workerID.get)
                 stub.shuffleAck(request)
