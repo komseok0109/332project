@@ -200,7 +200,7 @@ class Worker(masterHost: String, masterPort: Int,
     try {
       val request = PhaseCompleteNotification(workerID = workerID.get)
       stub.partitionEndMsg(request)
-      logger.info(s"Worker [${workerID.get}] has notified partitioning completed the master successfully.")
+      logger.info(s"Worker[${workerID.get}] has notified the master partitioning completed successfully.")
     } catch {
       case e: Exception =>
         logger.error(s"Failed to receive partition acknowledgement: ${e.getMessage}")
@@ -213,7 +213,7 @@ class Worker(masterHost: String, masterPort: Int,
     try {
       val request = PhaseCompleteNotification(workerID = workerID.get)
       stub.shufflingEndMsg(request)
-      logger.info(s"Worker [${workerID.get}] has notified shuffling completed the master successfully.")
+      logger.info(s"Worker[${workerID.get}] has notified the master shuffling completed successfully.")
     } catch {
       case e: Exception =>
         logger.error(s"Error during shuffling: ${e.getMessage}")
@@ -226,7 +226,7 @@ class Worker(masterHost: String, masterPort: Int,
     try {
       val request = PhaseCompleteNotification(workerID = workerID.get)
       stub.mergeEndMsg(request)
-      logger.info(s"Worker [${workerID.get}] has notified merging completed the master successfully.")
+      logger.info(s"Worker[${workerID.get}] has notified the master merging completed successfully.")
     } catch {
       case e: Exception =>
         logger.error(s"Error during termination: ${e.getMessage}")
