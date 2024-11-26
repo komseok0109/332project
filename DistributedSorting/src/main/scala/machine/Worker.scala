@@ -148,7 +148,7 @@ class Worker(masterHost: String, masterPort: Int,
         val filePaths = IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
         val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
           .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-        val stub = ShufflingMessageGrpc.blockingStub(channel)
+        val stub = ShufflingMessageGrpc.stub(channel)
         try {
           logger.info(s"Worker ${workerID.get}: Shuffling started for worker $i.")
           filePaths.foreach(filePath => {
@@ -188,7 +188,7 @@ class Worker(masterHost: String, masterPort: Int,
     Await.result(Future.sequence(futureList), Duration.Inf)
   }
 
-  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source,
+  private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageStub, source: Source,
                           dest: Int, fileName: String): Unit = {
     try {
       val LINES_PER_CHUNK = 40000
@@ -201,7 +201,6 @@ class Worker(masterHost: String, masterPort: Int,
         val request = SendDataRequest(data = chunkData, fileName = fileName)
         logger.info("Data is ready to sent")
         stub.sendDataToWorker(request)
-        logger.info("Server has received the data")
       }
     } catch {
       case e: Exception =>
