@@ -73,7 +73,7 @@ object SortAndPartition extends LazyLogging {
     linesByRange.foreach { case (key, lines) =>
       val sortedLines = lines.sorted
       val sanitizedFilePath = filePath.replaceAll("[^a-zA-Z0-9.-]", "_")
-      val outputPath = s"$outputDir/$key/${sanitizedFilePath}_chunk_${chunkIndex}_Worker$currentWorkerID"
+      val outputPath = s"$outputDir/$key/${sanitizedFilePath}_chunk_${chunkIndex}_Worker${currentWorkerID}_to$key"
       val outputFile = new File(outputPath)
 
       val parentDir = outputFile.getParentFile
@@ -100,7 +100,7 @@ object SortAndPartition extends LazyLogging {
 
 
   private def findRange(line: String, keyRanges: List[(Int, (String, String))]): Option[(Int, String)] = {
-    val key = line.take(10) 
+    val key = line.take(10)
     keyRanges.collectFirst {
       case (index, (start, end)) if key >= start && key <= end => (index, key)
     }
