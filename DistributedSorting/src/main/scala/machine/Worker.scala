@@ -141,7 +141,7 @@ class Worker(masterHost: String, masterPort: Int,
     }
   }
 
-  private def shuffle(): Unit = {2
+  private def shuffle(): Unit = {
     val futureList =
       (1 to totalWorkerCount.get).map { i: Int =>
       Future {
