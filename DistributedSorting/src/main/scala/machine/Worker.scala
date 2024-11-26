@@ -164,14 +164,14 @@ class Worker(masterHost: String, masterPort: Int,
               try {
                 val source = Source.fromFile(filePath)
                 shuffleData(stub, source, i, Paths.get(filePath).getFileName.toString)
-                val request = ShuffleAckRequest(source = workerID.get)
-                stub.shuffleAck(request)
                 source.close()
               } catch {
               case e: Exception => logger.error(s"Error Sending File ${filePath}: ${e.getMessage}")
               }
             }
           })
+          val request = ShuffleAckRequest(source = workerID.get)
+          stub.shuffleAck(request)
         } catch {
           case e: Exception =>
             logger.error(s"Worker ${workerID.get}: Error during shuffle operation for worker $i, ${e.getMessage}")
@@ -188,8 +188,13 @@ class Worker(masterHost: String, masterPort: Int,
                           dest: Int, fileName: String): Unit = {
     try {
       val LINES_PER_CHUNK = 40000
-      while (source.getLines().hasNext) {
-        val chunkData = source.getLines().take(LINES_PER_CHUNK).toList
+      val linesIterator = source.getLines()
+      while (linesIterator.hasNext) {
+        val chunkData = (1 to LINES_PER_CHUNK).flatMap { _ =>
+          if (linesIterator.hasNext) Some(linesIterator.next())
+          else None
+        }.toList
+
         val request = SendDataRequest(data = chunkData, fileName = fileName)
         stub.sendDataToWorker(request)
       }
