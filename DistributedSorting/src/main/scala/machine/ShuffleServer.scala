@@ -44,8 +44,8 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
       try {
         val writer = new BufferedWriter(new FileWriter(new File(directory, s"${request.fileName}"), true))
         request.data.foreach { line =>
-          assert(line.splitAt(10)._1 >= myRange._1 && line.splitAt(10)._1 <= myRange._2,
-            s"Line '$line' is out of range: ${myRange._1} to ${myRange._2}")
+          if (line.splitAt(10)._1 < myRange._1 || line.splitAt(10)._1 > myRange._2)
+            logger.warn(s"Line '$line' is out of range: ${myRange._1} to ${myRange._2}")
           writer.write(line)
           writer.newLine()
         }
