@@ -187,14 +187,13 @@ class Worker(masterHost: String, masterPort: Int,
   private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: Source,
                           dest: Int, fileName: String): Unit = {
     try {
-      val LINES_PER_CHUNK = 40000
+      val LINES_PER_CHUNK = 1000
       val linesIterator = source.getLines()
       while (linesIterator.hasNext) {
         val chunkData = (1 to LINES_PER_CHUNK).flatMap { _ =>
           if (linesIterator.hasNext) Some(linesIterator.next())
           else None
         }.toList
-
         val request = SendDataRequest(data = chunkData, fileName = fileName)
         stub.sendDataToWorker(request)
       }
