@@ -65,7 +65,7 @@ object SortAndPartition extends LazyLogging {
             val lines = linesByRange.getOrElseUpdate(key._1, mutable.ArrayBuffer[String]())
             lines += line
           case None =>
-            //logger.warn(s"Line is not assigned to any range: $line")
+            logger.warn(s"Line is not assigned to any range: $line")
         }
       }
     }
@@ -100,20 +100,9 @@ object SortAndPartition extends LazyLogging {
 
 
   private def findRange(line: String, keyRanges: List[(Int, (String, String))]): Option[(Int, String)] = {
-    var low = 0
-    var high = keyRanges.length - 1
-    while (low <= high) {
-      val mid = (low + high) / 2
-      val (workerId, (startKey, endKey)) = keyRanges(mid)
-      if (line >= startKey && line <= endKey) {
-        val rangeLabel = s"${startKey}_${endKey}"
-        return Some((workerId, rangeLabel))
-      } else if (line < startKey) {
-        high = mid - 1
-      } else {
-        low = mid + 1
-      }
+    val key = line.take(10) 
+    keyRanges.collectFirst {
+      case (index, (start, end)) if key >= start && key <= end => (index, key)
     }
-    None
   }
 }
