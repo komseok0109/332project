@@ -10,7 +10,7 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import java.nio.file.{Files, Paths, StandardCopyOption}
 import scala.io.Source
-
+import java.util.concurrent.Executors
 
 object Worker extends LazyLogging {
   def main(args: Array[String]): Unit = {
@@ -147,53 +147,60 @@ class Worker(masterHost: String, masterPort: Int,
   }
 
   private def shuffle(): Unit = {
-    val futureList = {
-      (1 to totalWorkerCount.get).map { i: Int =>
-      Future {
-        val filePaths = IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
-        val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
-          .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
-        val stub = ShufflingMessageGrpc.blockingStub(channel)
-        try {
-          logger.info(s"Worker ${workerID.get}: Shuffling started for worker $i.")
-          filePaths.foreach(filePath => {
-            if (i == workerID.get) {
-              try {
-                val sourcePath = Paths.get(filePath)
-                Files.copy(sourcePath, Paths.get(s"$outputDirectory/${sourcePath.getFileName}"),
-                  StandardCopyOption.REPLACE_EXISTING)
-              } catch {
-                case e: Exception => logger.error(s"Error Copying File ${filePath}: ${e.getMessage}")
-              }
-            } else {
-              try {
-                val source = Source.fromFile(filePath)
-                shuffleData(stub, source, i, Paths.get(filePath).getFileName.toString)
-                source.close()
-              } catch {
-              case e: Exception => logger.error(s"Error Sending File ${filePath}: ${e.getMessage}")
-              }
-            }
-          })
-          try {
-            val request = ShuffleAckRequest(source = workerID.get)
-            stub.shuffleAck(request)
-          } catch {
-            case e: Exception => logger.error(s"Error shuffling acknowledgement: ${e.getMessage}")
-          }
-        } catch {
-          case e: Exception =>
-            logger.error(s"Worker ${workerID.get}: Error during shuffle operation for worker $i, ${e.getMessage}")
-        } finally {
-          channel.shutdown()
-          logger.info(s"Worker ${workerID.get}: Channel shut down for worker $i.")
-        }}
-      }
-    }
     val MAX_BATCH_SIZE = 5
-    val batches = futureList.grouped(MAX_BATCH_SIZE) // maxBatchSize 크기로 나누기
-    batches.foreach { batch =>
-      Await.result(Future.sequence(batch), Duration.Inf)
+    val threadPool = Executors.newFixedThreadPool(MAX_BATCH_SIZE)
+    val customExecutionContext = ExecutionContext.fromExecutor(threadPool)
+    try {
+      val futureList = {
+        (1 to totalWorkerCount.get).map { i: Int =>
+          Future {
+            val filePaths = IOUtils.getFilePathsFromDirectories(List(outputDirectory + s"/${i}"))
+            val channel = ManagedChannelBuilder.forAddress(registeredWorkersIP(i), masterPort + i)
+              .usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build()
+            val stub = ShufflingMessageGrpc.blockingStub(channel)
+            try {
+              logger.info(s"Worker ${workerID.get}: Shuffling started for worker $i.")
+              filePaths.foreach(filePath => {
+                if (i == workerID.get) {
+                  try {
+                    val sourcePath = Paths.get(filePath)
+                    Files.copy(sourcePath, Paths.get(s"$outputDirectory/${sourcePath.getFileName}"),
+                      StandardCopyOption.REPLACE_EXISTING)
+                  } catch {
+                    case e: Exception => logger.error(s"Error Copying File ${filePath}: ${e.getMessage}")
+                  }
+                } else {
+                  try {
+                    val source = Source.fromFile(filePath)
+                    shuffleData(stub, source, i, Paths.get(filePath).getFileName.toString)
+                    source.close()
+                  } catch {
+                    case e: Exception => logger.error(s"Error Sending File ${filePath}: ${e.getMessage}")
+                  }
+                }
+              })
+              try {
+                val request = ShuffleAckRequest(source = workerID.get)
+                stub.shuffleAck(request)
+              } catch {
+                case e: Exception => logger.error(s"Error shuffling acknowledgement: ${e.getMessage}")
+              }
+            } catch {
+              case e: Exception =>
+                logger.error(s"Worker ${workerID.get}: Error during shuffle operation for worker $i, ${e.getMessage}")
+            } finally {
+              channel.shutdown()
+              logger.info(s"Worker ${workerID.get}: Channel shut down for worker $i.")
+            }
+          }(customExecutionContext)
+        }
+      }
+      val batches = futureList.grouped(MAX_BATCH_SIZE)
+      batches.foreach { batch =>
+        Await.result(Future.sequence(batch), Duration.Inf)
+      }
+    } finally {
+      threadPool.shutdown()
     }
   }
 
