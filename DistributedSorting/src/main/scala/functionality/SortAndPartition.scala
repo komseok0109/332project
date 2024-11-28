@@ -102,7 +102,7 @@ object SortAndPartition extends LazyLogging {
 
   private def findRange(line: String, keyRanges: List[(Int, (String, String))], workerNum: Int): Option[(Int, String)] = {
     val key = line.take(10)
-    keyRanges.collectFirst {
+    keyRanges.sortBy(mapping => mapping._1).collectFirst {
       case (index, (start, end)) if (index == workerNum && key >= start) || (key <= end) => (index, key)
       }
   }
