@@ -11,6 +11,7 @@ import scala.concurrent.duration._
 import java.nio.file.{Files, Paths, StandardCopyOption}
 import scala.io.Source
 
+
 object Worker extends LazyLogging {
   def main(args: Array[String]): Unit = {
     implicit val ec: ExecutionContext = scala.concurrent.ExecutionContext.global
@@ -29,6 +30,9 @@ object Worker extends LazyLogging {
 class Worker(masterHost: String, masterPort: Int,
              inputDirectories: Seq[String], outputDirectory: String)(implicit ec: ExecutionContext)
   extends LazyLogging {
+
+  type Data = Array[Byte]
+
   private val channel = ManagedChannelBuilder
     .forAddress(masterHost, masterPort).usePlaintext().asInstanceOf[ManagedChannelBuilder[_]].build
   private val stub = MessageGrpc.blockingStub(channel)
@@ -60,7 +64,8 @@ class Worker(masterHost: String, masterPort: Int,
         System.exit(1)
     }
     try {
-      SortAndPartition.openFileAndProcessing(filePaths, ID2Ranges.toList, outputDirectory, workerID.get)
+      SortAndPartition.openFileAndProcessing(filePaths, ID2Ranges.toList, outputDirectory,
+        workerID.get, totalWorkerCount.get)
       logger.info("Sorting and partitioning have successfully completed")
     } catch {
       case e: Exception =>

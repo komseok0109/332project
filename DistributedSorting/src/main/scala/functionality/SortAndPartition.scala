@@ -11,14 +11,14 @@ import utils.IOUtils.getFilePathsFromDirectories
 
 object SortAndPartition extends LazyLogging {
   def openFileAndProcessing(filePaths: List[String], key2Ranges: List[(Int, (String, String))],
-                            outputDir: String, currentWorkerID: Int): Unit = {
+                            outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
     val numThreads = Runtime.getRuntime.availableProcessors()
     val executorService = Executors.newFixedThreadPool(numThreads)
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(executorService)
     try {
       val processingFutures = filePaths.map { filePath =>
         Future {
-          processFile(filePath, key2Ranges, outputDir, currentWorkerID)
+          processFile(filePath, key2Ranges, outputDir, currentWorkerID, workerNum)
         }
       }
       Await.result(Future.sequence(processingFutures), Duration.Inf)
@@ -27,7 +27,8 @@ object SortAndPartition extends LazyLogging {
     }
   }
 
-  private def processFile(filePath: String, key2Ranges: List[(Int, (String, String))], outputDir: String, currentWorkerID: Int): Unit = {
+  private def processFile(filePath: String, key2Ranges: List[(Int, (String, String))],
+                          outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
     val chunkSize = 1000000
     try {
       val source = Source.fromFile(filePath)
@@ -41,7 +42,7 @@ object SortAndPartition extends LazyLogging {
             buffer += lineIterator.next()
           }
           if (buffer.nonEmpty) {
-            processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex, outputDir, currentWorkerID)
+            processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex, outputDir, currentWorkerID, workerNum)
             chunkIndex += 1
           }
         }
@@ -54,12 +55,12 @@ object SortAndPartition extends LazyLogging {
     }
   }
   private def processChunk(chunk: Array[String], key2Ranges: List[(Int, (String, String))], filePath: String,
-                   chunkIndex: Int, outputDir: String, currentWorkerID: Int): Unit = {
+                   chunkIndex: Int, outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
     val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[String]]()
 
     chunk.foreach { line =>
       if (line.nonEmpty) {
-        val rangeKey = findRange(line, key2Ranges)
+        val rangeKey = findRange(line, key2Ranges, workerNum)
         rangeKey match {
           case Some(key) =>
             val lines = linesByRange.getOrElseUpdate(key._1, mutable.ArrayBuffer[String]())
@@ -99,10 +100,10 @@ object SortAndPartition extends LazyLogging {
   }
 
 
-  private def findRange(line: String, keyRanges: List[(Int, (String, String))]): Option[(Int, String)] = {
+  private def findRange(line: String, keyRanges: List[(Int, (String, String))], workerNum: Int): Option[(Int, String)] = {
     val key = line.take(10)
     keyRanges.collectFirst {
-      case (index, (start, end)) if key >= start && key <= end => (index, key)
-    }
+      case (index, (start, end)) if (index == workerNum && key >= start) || (key <= end) => (index, key)
+      }
   }
 }
