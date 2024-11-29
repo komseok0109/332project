@@ -1,161 +1,219 @@
-import java.io._
-import scala.concurrent._
-import ExecutionContext.Implicits.global
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.Source
 import scala.concurrent.duration._
-import scala.collection._
+import java.io.{File,PrintWriter, FileWriter, BufferedWriter}
 import scala.collection.mutable.ListBuffer
+import java.nio.file.Paths
+import scala.util.Random
 
 
-class Merge {
-  val threadsNum = 4
-
-
-  def mergeSort(inputPath: String, outputPath: String, workerNum: Int): List[String] = {
-    // Step 1: Read the input file and determine key ranges
-    val inputDataList = readFiles(inputPath, workerNum)
-
-    val keys = inputDataList.map(_.take(10))
-    //key 들 list 얻은 후, 정렬
-    val sortedKeys = keys.sorted
-
-    //정렬한 key로 key range 분리
-    val ranges = getRange(sortedKeys)
-
-    // Step 2: Split input data into key-based regions
-    //thread 개수만큼 빈 list (listbuffer) 생성
-    val partitionedData = splitData(inputDataList, ranges)
-
-    // Step 3: Sort each region concurrently
-    val sortAndWriteFutures = partitionedData.zipWithIndex.map { case (data, i) =>
-      Future {
-        //나눠진 부분 각각 정렬
-        val sortedData = data.sorted
-
-        val writeFilePath = outputPath + s"-fromThread.$i.txt"
-        //outputPath+"fromThread3.txt" 같은 형식으로 저장
-        val writer = new PrintWriter(writeFilePath)
-        sortedData.foreach(line => writer.println(line))
-        writer.close()
-        writeFilePath
-      }
+class Merge() {
+  val numPartitions = 4
+  val numSample = 10000
+  def partitionFiles(inputPaths: List[String], outputPath : String): List[ListBuffer[String]] ={
+    val sortedKeys = getSample(readFile(inputPaths)).sorted
+    //println("got samples")
+    val rangeSize = numSample/numPartitions
+    var range = List[String]()
+    try{
+      range = (0 until numPartitions).map { i=>
+        val idx = if(i+1 == numPartitions) numSample -1 else (i+1)*rangeSize -1
+        println(s"idx: $idx, value: ${sortedKeys(idx)}")
+        sortedKeys(idx)
+      }.toList.sorted
+    } catch {
+      case ex: Exception =>
+        println(s"Error during range calculation: ${ex.getMessage}")
     }
+    println(range)
+    println("got range")
 
-    // Step 4: Wait for all sorting tasks to complete
-    val outputFilesList = Await.result(Future.sequence(sortAndWriteFutures), Duration.Inf)
-    mergeAllFiles(outputFilesList,outputPath+".merged.txt")
-    outputFilesList
-  }
 
-  private def readFiles(inputPath: String, workerNum: Int): List[String] = {
-    val inputDataList = (0 until workerNum).flatMap { i =>
-      //파일 이름이 inputPath+".3.txt" 같은 형식으로 되어있다고 가정
-      //C://somepath/somename-worker.1.txt : somepath 폴더 안의 somename-worker.1.txt
-      val fileName = inputPath + s".$i.txt"
-      try {
-        val source = Source.fromFile(fileName)
-        source.getLines().toList
-      } catch {
-        case ex: FileNotFoundException =>
-          println(s"File not found: $fileName. Skipping...")
-          Iterator.empty // 빈 Iterator를 반환하여 스킵
-        case ex: IOException =>
-          println(s"Error while reading file: $fileName. ${ex.getMessage}. Skipping...")
-          Iterator.empty // 빈 Iterator를 반환하여 스킵
-        case ex: Exception =>
-          println(s"Unexpected error while reading files: ${ex.getMessage}")
-          Iterator.empty
-      }
-    }.toList
+    val inputDataList = readFile(inputPaths)
+    val fileDataAndPath = inputDataList.zip(inputPaths)
+    val newFilePaths = List.fill(numPartitions)(ListBuffer[String]())
 
-    inputDataList
-  }
-
-  private def getRange(keys: List[String]): List[String] = {
-    val ranges = {
-      if (keys.nonEmpty) {
-        (0 until threadsNum).map(i => keys((i * keys.size) / threadsNum)).toList :+ keys.last
-      }
-      else {
-        List.empty[String]
-      }
-    }
-    //println("Ranges: [" + ranges.mkString("],[")+"]")
-    ranges
-  }
-
-  private def splitData(inputDataLines: List[String], ranges: List[String]): List[ListBuffer[String]] = {
-    val partitionedData = Array.fill(threadsNum)(collection.mutable.ListBuffer.empty[String])
-
-    //input data의 모든 라인에 대해
-    inputDataLines.foreach { line =>
-      //key 획득
-      val key = line.take(10)
-      //key가 어느 영역인지 index 획득
-      try {
-        //여기서 range를 (0,25,50,75,100)이라고 하면, key 30은 index가 2로 나옴. (25,50) 범위가 2번째
-        val regionIndex = ranges.indexWhere(key < _) match {
-          case -1 => threadsNum - 1
-          //index가 0,1,2,3 이 아니라 1,2,3,4로 나와서 1 빼줌
-          case idx => idx-1
-        }
-        //해당 index의 listbuffer에 line 추가
-        partitionedData(regionIndex) += line
-      } catch {
-        case ex: IndexOutOfBoundsException =>
-          println(s"Error: Index out of bounds while processing key '$key'.")
-        case ex: Exception =>
-          println(s"Unexpected error while processing key '$key': ${ex.getMessage}")
-      }
-    }
-
-    partitionedData.toList
-  }
-
-  def mergeAllFiles(filesList : List[String], outputPath: String): Unit={
-    val writer = new PrintWriter(new File(outputPath))
     try {
-      // 각 파일을 순회하며 내용 읽기
-      for (file <- filesList) {
-        val source = Source.fromFile(file)
-        try {
-          val inputDataLines = source.getLines().toList
-
-          //val isSorted = isDataSorted(inputDataLines)
-          //println(s"Data is sorted: $isSorted")
-
-          //파일 내용 쓰기
-          inputDataLines.foreach { line =>
-            writer.println(line)
+      fileDataAndPath.foreach { case (fileData, filePath) =>
+        assert(fileData.nonEmpty)
+        val partitionedData = Array.fill(numPartitions)(ListBuffer[String]())
+        fileData.foreach { line =>
+          val key = line.take(10)
+          val idx = range.indexWhere(rangeValue => rangeValue > key)
+          val partIdx = idx match{
+            case -1 => numPartitions -1
+            case _ => idx
           }
-        } finally {
-          source.close() // 개별 파일 닫기
+          partitionedData(partIdx) += line
+        }
+
+        partitionedData.zipWithIndex.foreach { case(buffer, partIdx)=>
+          val fileName = Paths.get(filePath).getFileName.toString
+          val fileDir = outputPath+s"${partIdx}/"
+
+          val dir = new File(fileDir)
+          if(!dir.exists()){
+            dir.mkdirs()
+            println("directory created" + s"$fileDir")
+          }
+          val path = fileDir + fileName
+          newFilePaths(partIdx) += path
+          val writer = new PrintWriter(path)
+
+          val dataList = buffer.toList
+          try {
+            dataList.foreach {writer.println}
+          } finally {
+            writer.close()
+            //println(s"finished writing to $path")
+          }
         }
       }
     } catch {
-      case ex: IOException =>
-        println(s"Error while merging files: ${ex.getMessage}")
-    } finally {
-      writer.close() // 출력 파일 닫기
+      case ex: Exception =>
+        println(s"some Exception while partitioning Files: ${ex.getMessage}")
+    }
+    newFilePaths
+  }
+
+  def readFile(filePaths: List[String]): List[Iterator[String]] = {
+    filePaths.map { filePath =>
+      val source = Source.fromFile(filePath)
+      try{
+        source.getLines()
+      } catch{
+        case ex:Exception =>
+          println(s"Error during read file : ${ex.getMessage}")
+          Iterator.empty
+      }
     }
   }
 
-  private def isDataSorted(inputDataList: List[String]): Boolean = {
-    val keys = inputDataList.map(_.take(10))
-    keys.zip(keys.tail).forall { case (prev, curr) => prev <= curr }
+  def getSample(inputDataList: List[Iterator[String]]): List[String] = {
+    //println("getting samples")
+    val totalSampleSize = numSample
+    val sampleNumForEachFile = totalSampleSize/inputDataList.length
+    val random = new Random()
+    val sampleKey = ListBuffer[String]()
+    inputDataList.foreach { fileData =>
+      // Get a random sample from the LazyList
+      val randomIndexes = (0 until sampleNumForEachFile).map { _ =>
+        random.nextInt(sampleNumForEachFile)
+      }.toList
+      //println(randomIndexes)
+      randomIndexes.foreach { idx =>
+        val sampledLine = fileData.drop(idx).next()
+        sampleKey += sampledLine.take(10)
+      }
+    }
+    assert(sampleKey.nonEmpty)
+    sampleKey.toList
+  }
+
+  /*
+  def splitRange(startKey: String, endKey: String): List[String] = {
+    println("start splitRange")
+    try{
+      val start = BigInt(startKey)
+      val end = BigInt(endKey)
+      val rangeLen = end - start
+      val intervalSize = rangeLen/numPartitions
+      val splitPoints = (0 until numPartitions).map { i =>
+        val splitPoint = start + (i + intervalSize)
+        splitPoint.toString
+      }
+      println("splitRange succeed")
+      splitPoints.toList
+    } catch {
+      case e: NumberFormatException =>
+        println(s"Error during splitRange: Invalid number format in start or end key. ${e.getMessage}")
+        List() // Return an empty list or some default value on error
+      case e: IllegalArgumentException =>
+        println(s"Error during splitRange: ${e.getMessage}")
+        List() // Return an empty list or handle appropriately
+      case e: Exception =>
+        println(s"Unexpected error during splitRange: ${e.getMessage}")
+        List() // Return an empty list or handle appropriately
+    }
+  }
+
+   */
+
+  def merge(inputPaths: List[String], myRange: (Int, (String,String)), outputDir: String): List[String] = {
+    val (workerId, (startKey, endKey)) = myRange
+    val inputPathList = partitionFiles(inputPaths, outputDir)
+    println("done partitioning")
+    val outputPathList = ListBuffer[String]()
+    inputPathList.zipWithIndex.foreach { case (partPathList, partIdx) =>
+      val outputPath = outputDir+s"${partIdx}/"+s"sorted.txt"
+      val finalData = divideFiles(partPathList.toList)
+
+      val writer = new PrintWriter(outputPath)
+      try{
+        finalData.foreach(writer.println)
+        outputPathList += outputPath
+      } finally {
+        writer.close()
+      }
+    }
+    outputPathList.toList
+  }
+
+  def mergeTwoItr(data1: Iterator[String], data2: Iterator[String]): Iterator[String] = {
+    val buffer = ListBuffer[String]()
+    val it1 = data1.buffered
+    val it2 = data2.buffered
+
+    while (it1.hasNext && it2.hasNext) {
+      if (it1.head <= it2.head) buffer += it1.next()
+      else buffer += it2.next()
+    }
+
+    buffer ++= it1
+    buffer ++= it2
+    buffer.iterator
+  }
+
+  def divideFiles(filePathsList: List[String]): Iterator[String] = {
+    if (filePathsList.size <= 1) {
+      Source.fromFile(filePathsList.head).getLines()
+    }
+    else if (filePathsList.size == 2) {
+      //비교할 파일이 2개라면 mergeTwoList로 합치기
+      val data1 = Source.fromFile(filePathsList.head).getLines()
+      val data2 = Source.fromFile(filePathsList(1)).getLines()
+      mergeTwoItr(data1, data2)
+    }
+    else {
+      val (firstHalf, secondHalf) = filePathsList.splitAt(filePathsList.size / 2)
+      val firstFuture = Future { divideFiles(firstHalf) }
+      val secondFuture = Future { divideFiles(secondHalf) }
+
+      //Future를 Await 하고, 결과로 나온 값 두개를 mergeTwoLists()
+      val data1 = Await.result(firstFuture, Duration.Inf)
+      val data2 = Await.result(secondFuture, Duration.Inf)
+      mergeTwoItr(data1, data2)
+    }
+  }
+  private def isDataSorted(data: Iterator[String]): Boolean = {
+    val keys = data.map(_.take(10))
+    keys.sliding(2).forall {
+      case Seq(prev, curr) => prev <= curr
+      case _               => true
+    }
   }
 
   def isFileSorted(fileName: String): Boolean = {
     try {
       // 파일을 읽어 List[String]으로 변환
       val source = Source.fromFile(fileName)
-      val lines = source.getLines().toList
+      val isSorted = isDataSorted(source.getLines())
       source.close()
-      // 읽은 데이터를 isDataSorted 함수에 전달하여 정렬 여부 확인
-      isDataSorted(lines)
+      isSorted
     } catch {
       case ex: Exception =>
-        println(s"Error reading the file: ${ex.getMessage}")
+        println(s"no file exist: ${ex.getMessage}")
         false
     }
   }
