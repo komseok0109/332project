@@ -36,38 +36,7 @@ class ShuffleServer(executionContext: ExecutionContext, port: Int, outputDirecto
   }
 
   private class ShuffleMessageImpl extends ShufflingMessageGrpc.ShufflingMessage {
-    override def sendDataToWorker(request: SendDataRequest): Future[EmptyAckMsg] = {
-      logger.info("Received Data")
-      val directory = new File(outputDirectory)
-      if (!directory.exists()) {
-        directory.mkdirs()
-      }
-      try {
-        val writer = new BufferedWriter(new FileWriter(new File(directory, s"${request.fileName}"), true))
-        request.data.foreach { line =>
-          if (line.splitAt(10)._1 < myRange._1 || line.splitAt(10)._1 > myRange._2)
-            logger.warn(s"Line '$line' is out of range: ${myRange._1} to ${myRange._2}")
-          writer.write(line)
-          writer.newLine()
-        }
-        writer.close()
-        logger.info("Saved All Data")
-        Future.successful(EmptyAckMsg())
-      } catch {
-        case e: AssertionError =>
-          logger.error(s"Assertion failed: ${e.getMessage}")
-          Future.failed(e)
-        case e: Exception =>
-          logger.error(s"Unexpected error: ${e.getMessage}")
-          Future.failed(e)
-      }
-    }
-    override def shuffleAck(request: ShuffleAckRequest): Future[EmptyAckMsg] = {
-      logger.info(s"Worker ${request.source} has sent all data to worker $workerID")
-      ackLatch.countDown()
-      ackLatch.await()
-      server.shutdown()
-      Future.successful(EmptyAckMsg())
-    }
+    override def sendDataToWorker(request: SendDataRequest): Future[EmptyAckMsg] = ???
+    override def shuffleAck(request: ShuffleAckRequest): Future[EmptyAckMsg] = ???
   }
 }
