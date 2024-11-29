@@ -9,6 +9,8 @@ import com.typesafe.scalalogging.LazyLogging
 import com.google.protobuf.ByteString
 import com.google.protobuf.ByteString.unsignedLexicographicalComparator
 
+
+
 object SortAndPartition extends LazyLogging {
   def openFileAndProcessing(filePaths: List[String], key2Ranges: List[(Int, (ByteString, ByteString))],
                             outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
@@ -66,7 +68,6 @@ object SortAndPartition extends LazyLogging {
                            chunkIndex: Int, outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
 
     val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[ByteString]]()
-
     chunk.foreach { lineBytes =>
       if (!lineBytes.isEmpty) {
         val rangeKey = findRange(lineBytes, key2Ranges, workerNum)
@@ -76,11 +77,10 @@ object SortAndPartition extends LazyLogging {
             lines += lineBytes
           case None =>
             logger.warn(s"Line is not assigned to any range: $lineBytes")
+
         }
       }
     }
-
-
     linesByRange.foreach { case (key, lines) =>
       val sortedLines = lines.sortWith((a, b) => unsignedLexicographicalComparator.compare(a ,b) < 0)
       val sanitizedFilePath = filePath.replaceAll("[^a-zA-Z0-9.-]", "_")
@@ -108,7 +108,6 @@ object SortAndPartition extends LazyLogging {
       }
     }
   }
-
   private def findRange(lineBytes: ByteString, keyRanges: List[(Int, (ByteString, ByteString))],
                         workerNum: Int): Option[(Int, ByteString)] = {
     if (workerNum == 1)
@@ -122,5 +121,4 @@ object SortAndPartition extends LazyLogging {
       }
     }
   }
-
 }
