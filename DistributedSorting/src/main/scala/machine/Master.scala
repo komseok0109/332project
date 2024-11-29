@@ -9,6 +9,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic._
 import scala.collection.concurrent._
 import scala.concurrent._
+import com.google.protobuf.ByteString.unsignedLexicographicalComparator
 
 object Master extends LazyLogging {
   def main(args: Array[String]): Unit  = {
@@ -32,7 +33,7 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
     .addService(MessageGrpc.bindService(new MessageImpl, executionContext))
     .asInstanceOf[ServerBuilder[_]]
     .build()
-  private val registeredWorkersIP: TrieMap[Int, ByteString] = TrieMap()
+  private val registeredWorkersIP: TrieMap[Int, String] = TrieMap()
   private val workerIDCounter: AtomicInteger = new AtomicInteger(1)
   private val receivedSamples: TrieMap[Int, Seq[ByteString]] = TrieMap()
 
@@ -64,14 +65,64 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
     private val partitionAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
     private val shufflingAckLatch: CountDownLatch = new CountDownLatch(numWorkers)
 
-    override def registerWorker(request: RegisterWorkerRequest): Future[RegisterWorkerReply] = ???
-    override def calculatePivots(request: CalculatePivotRequest): Future[CalculatePivotReply] = ???
 
-    override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
+    override def registerWorker(request: RegisterWorkerRequest): Future[RegisterWorkerReply] = {
+      if (registeredWorkersIP.size >= numWorkers) {
+        logger.error(s"Worker registration failed: Maximum worker limit ($numWorkers) reached.")
+        Future.failed(new IllegalStateException(s"Maximum worker limit ($numWorkers) reached."))
+      } else {
+        val workerIDToAssign = workerIDCounter.getAndIncrement()
+        registeredWorkersIP.put(workerIDToAssign, request.workerIP)
+        logger.info(s"Worker(${request.workerIP}) has registered with ID $workerIDToAssign")
+        Future.successful(RegisterWorkerReply(totalWorkerCount = numWorkers, workerID = workerIDToAssign))
+      }
+    }
 
-    override def shufflingEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
+    override def calculatePivots(request: CalculatePivotRequest): Future[CalculatePivotReply] = {
+      receivedSamples.put(request.workerID, request.sampleData)
+      logger.info(s"Sample data from ${request.workerID} received")
+      samplingLatch.countDown()
+      samplingLatch.await()
+      assert(receivedSamples.size == numWorkers, s"Registered Workers < # of Workers")
+      assert(samplingLatch.getCount == 0)
+      val sortedSamples = receivedSamples.values.flatten.toList.
+        sortWith((a,b) =>unsignedLexicographicalComparator().compare(a, b) < 0)
+      val rangeStep = sortedSamples.length / numWorkers
+      val keyRanges: Seq[WorkerIDKeyRangeMapping] = for {
+        i <- 0 until numWorkers
+        startKey = if (i == 0) ByteString.copyFrom(Array.fill(10)(0.toByte)) else sortedSamples(i * rangeStep)
+        endKey = {
+          if (i == numWorkers - 1) ByteString.copyFrom(Array.fill(10)(0xff.toByte))
+          else sortedSamples((i + 1) * rangeStep)
+        }
+      } yield WorkerIDKeyRangeMapping(i + 1, startKey, endKey)
 
-    override def mergeEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = ???
+      Future.successful(CalculatePivotReply(workerIPs = registeredWorkersIP.toMap, keyRangeMapping = keyRanges))
+    }
+
+    override def partitionEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      logger.info(s"Worker ${request.workerID} has notified that partitioning is done")
+      partitionAckLatch.countDown()
+      partitionAckLatch.await()
+      assert(partitionAckLatch.getCount == 0)
+      Future.successful(EmptyAckMsg())
+    }
+
+    override def shufflingEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      logger.info(s"Worker ${request.workerID} has notified that shuffling is done")
+      shufflingAckLatch.countDown()
+      shufflingAckLatch.await()
+      assert(shufflingAckLatch.getCount == 0, "latch's value is not 0")
+      Future.successful(EmptyAckMsg())
+    }
+
+    override def mergeEndMsg(request: PhaseCompleteNotification): Future[EmptyAckMsg] = {
+      mergeAckLatch.countDown()
+      mergeAckLatch.await()
+      assert(mergeAckLatch.getCount == 0)
+      server.shutdown()
+      Future.successful(EmptyAckMsg())
+    }
   }
 
   def printResult(): Unit = {
