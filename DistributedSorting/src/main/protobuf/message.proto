@@ -26,13 +26,13 @@ message RegisterWorkerReply {
 
 message CalculatePivotRequest {
   int32 workerID = 1;
-  repeated string sampleData = 2;
+  repeated bytes sampleData = 2;
 }
 
 message WorkerIDKeyRangeMapping {
   int32 workerID = 1;
-  string startKey = 2;
-  string endKey = 3;
+  bytes startKey = 2;
+  bytes endKey = 3;
 }
 
 message CalculatePivotReply {
@@ -48,7 +48,7 @@ message EmptyAckMsg {
 }
 
 message SendDataRequest {
-  repeated string data = 1;
+  repeated bytes data = 1;
   string fileName = 2;
 }
 

@@ -1,16 +1,16 @@
 package functionality
 
-import scala.io.Source
-import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
+import java.io.{BufferedInputStream, BufferedOutputStream, File, FileInputStream, FileOutputStream}
 import scala.collection.mutable
 import scala.concurrent._
 import java.util.concurrent.Executors
 import scala.concurrent.duration._
 import com.typesafe.scalalogging.LazyLogging
-import utils.IOUtils.getFilePathsFromDirectories
+import com.google.protobuf.ByteString
+import com.google.protobuf.ByteString.unsignedLexicographicalComparator
 
 object SortAndPartition extends LazyLogging {
-  def openFileAndProcessing(filePaths: List[String], key2Ranges: List[(Int, (String, String))],
+  def openFileAndProcessing(filePaths: List[String], key2Ranges: List[(Int, (ByteString, ByteString))],
                             outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
     val numThreads = Runtime.getRuntime.availableProcessors()
     val executorService = Executors.newFixedThreadPool(numThreads)
@@ -18,61 +18,71 @@ object SortAndPartition extends LazyLogging {
     try {
       val processingFutures = filePaths.map { filePath =>
         Future {
-          processFile(filePath, key2Ranges, outputDir, currentWorkerID, workerNum)
+          processFile(filePath,
+            key2Ranges.map(mapping => (mapping._1, (mapping._2._1, mapping._2._2))),
+            outputDir, currentWorkerID, workerNum)
         }
       }
+
       Await.result(Future.sequence(processingFutures), Duration.Inf)
     } finally {
       executorService.shutdown()
     }
   }
 
-  private def processFile(filePath: String, key2Ranges: List[(Int, (String, String))],
+  private def processFile(filePath: String, key2Ranges: List[(Int, (ByteString, ByteString))],
                           outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
-    val chunkSize = 1000000
+    val chunkSize = 100000000
     try {
-      val source = Source.fromFile(filePath)
+      val inputStream = new BufferedInputStream(new FileInputStream(filePath))
       try {
-        val lineIterator = source.getLines()
-        val buffer = mutable.ArrayBuffer[String]()
+        val buffer = mutable.ArrayBuffer[ByteString]()
         var chunkIndex = 0
-        while (lineIterator.hasNext) {
+        val readBuffer = new Array[Byte](100)
+        var bytesRead = inputStream.read(readBuffer)
+        while (bytesRead != -1) {
           buffer.clear()
-          while (buffer.size < chunkSize && lineIterator.hasNext) {
-            buffer += lineIterator.next()
+          while (buffer.size < chunkSize && bytesRead != -1) {
+            val validBytes = ByteString.copyFrom(readBuffer.take(bytesRead))
+            buffer += validBytes
+            bytesRead = inputStream.read(readBuffer)
           }
           if (buffer.nonEmpty) {
             processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex, outputDir, currentWorkerID, workerNum)
             chunkIndex += 1
           }
         }
+
       } finally {
-        source.close()
+        inputStream.close()
       }
     } catch {
       case e: Exception =>
         logger.error(s"Error during file($filePath) read: ${e.getMessage}")
     }
   }
-  private def processChunk(chunk: Array[String], key2Ranges: List[(Int, (String, String))], filePath: String,
-                   chunkIndex: Int, outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
-    val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[String]]()
 
-    chunk.foreach { line =>
-      if (line.nonEmpty) {
-        val rangeKey = findRange(line, key2Ranges, workerNum)
+  private def processChunk(chunk: Array[ByteString], key2Ranges: List[(Int, (ByteString, ByteString))], filePath: String,
+                           chunkIndex: Int, outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
+
+    val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[ByteString]]()
+
+    chunk.foreach { lineBytes =>
+      if (!lineBytes.isEmpty) {
+        val rangeKey = findRange(lineBytes, key2Ranges, workerNum)
         rangeKey match {
           case Some(key) =>
-            val lines = linesByRange.getOrElseUpdate(key._1, mutable.ArrayBuffer[String]())
-            lines += line
+            val lines = linesByRange.getOrElseUpdate(key._1, mutable.ArrayBuffer[ByteString]())
+            lines += lineBytes
           case None =>
-            logger.warn(s"Line is not assigned to any range: $line")
+            logger.warn(s"Line is not assigned to any range: $lineBytes")
         }
       }
     }
 
+
     linesByRange.foreach { case (key, lines) =>
-      val sortedLines = lines.sorted
+      val sortedLines = lines.sortWith((a, b) => unsignedLexicographicalComparator.compare(a ,b) < 0)
       val sanitizedFilePath = filePath.replaceAll("[^a-zA-Z0-9.-]", "_")
       val outputPath = s"$outputDir/$key/${sanitizedFilePath}_chunk_${chunkIndex}_Worker${currentWorkerID}_to$key"
       val outputFile = new File(outputPath)
@@ -86,11 +96,11 @@ object SortAndPartition extends LazyLogging {
       }
 
       try {
-        val writer = new PrintWriter(new BufferedWriter(new FileWriter(outputFile, true)))
+        val outputStream = new FileOutputStream(outputPath)
         try {
-          sortedLines.foreach(writer.println)
+          sortedLines.foreach({line => outputStream.write(line.toByteArray)})
         } finally {
-          writer.close()
+          outputStream.close()
         }
       } catch {
         case e: Exception =>
@@ -99,11 +109,18 @@ object SortAndPartition extends LazyLogging {
     }
   }
 
-
-  private def findRange(line: String, keyRanges: List[(Int, (String, String))], workerNum: Int): Option[(Int, String)] = {
-    val key = line.take(10)
-    keyRanges.sortBy(mapping => mapping._1).collectFirst {
-      case (index, (start, end)) if (index == workerNum && key >= start) || (key <= end) => (index, key)
+  private def findRange(lineBytes: ByteString, keyRanges: List[(Int, (ByteString, ByteString))],
+                        workerNum: Int): Option[(Int, ByteString)] = {
+    if (workerNum == 1)
+      Some((1, lineBytes))
+    else {
+      val key = lineBytes.substring(0, 10)
+      keyRanges.sortBy(mapping => mapping._1).collectFirst {
+        case (index, (start, end))
+          if (index == workerNum && unsignedLexicographicalComparator().compare(key, start) >= 0)
+            || unsignedLexicographicalComparator().compare(key, end) <= 0 => (index, key)
       }
+    }
   }
+
 }
