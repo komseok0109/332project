@@ -128,7 +128,7 @@ class Master(executionContext: ExecutionContext, numWorkers: Int)(implicit ec: E
   def printResult(): Unit = {
     logger.info("All workers have successfully completed!")
     println(IPUtils.getMachineIP + s":${PORT}")
-    registeredWorkersIP.values.foreach(ip => print(ip + " "))
+    registeredWorkersIP.toList.sortBy(_._1).foreach(pair => print(pair._2 + " "))
     println()
   }
 }
