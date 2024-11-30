@@ -13,7 +13,7 @@ import com.google.protobuf.ByteString.unsignedLexicographicalComparator
 
 object SortAndPartition extends LazyLogging {
   def openFileAndProcessing(filePaths: List[String], key2Ranges: List[(Int, (ByteString, ByteString))],
-                            outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
+                            outputDir: String, currentWorkerID: Int, workerNum: Int, sortRequired: Boolean): Unit = {
     val numThreads = Runtime.getRuntime.availableProcessors()
     val executorService = Executors.newFixedThreadPool(numThreads)
     implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(executorService)
@@ -22,7 +22,7 @@ object SortAndPartition extends LazyLogging {
         Future {
           processFile(filePath,
             key2Ranges.map(mapping => (mapping._1, (mapping._2._1, mapping._2._2))),
-            outputDir, currentWorkerID, workerNum)
+            outputDir, currentWorkerID, workerNum, sortRequired)
         }
       }
 
@@ -33,7 +33,7 @@ object SortAndPartition extends LazyLogging {
   }
 
   private def processFile(filePath: String, key2Ranges: List[(Int, (ByteString, ByteString))],
-                          outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
+                          outputDir: String, currentWorkerID: Int, workerNum: Int, sortRequired: Boolean): Unit = {
     val chunkSize = 100000000
     try {
       val inputStream = new BufferedInputStream(new FileInputStream(filePath))
@@ -50,7 +50,8 @@ object SortAndPartition extends LazyLogging {
             bytesRead = inputStream.read(readBuffer)
           }
           if (buffer.nonEmpty) {
-            processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex, outputDir, currentWorkerID, workerNum)
+            processChunk(buffer.toArray, key2Ranges, filePath, chunkIndex,
+              outputDir, currentWorkerID, workerNum, sortRequired)
             chunkIndex += 1
           }
         }
@@ -64,13 +65,15 @@ object SortAndPartition extends LazyLogging {
     }
   }
 
-  private def processChunk(chunk: Array[ByteString], key2Ranges: List[(Int, (ByteString, ByteString))], filePath: String,
-                           chunkIndex: Int, outputDir: String, currentWorkerID: Int, workerNum: Int): Unit = {
+  private def processChunk(chunk: Array[ByteString], key2Ranges: List[(Int, (ByteString, ByteString))],
+                           filePath: String, chunkIndex: Int, outputDir: String,
+                           currentWorkerID: Int, workerNum: Int, sortRequired: Boolean): Unit = {
 
     val linesByRange = new mutable.HashMap[Int, mutable.ArrayBuffer[ByteString]]()
     chunk.foreach { lineBytes =>
       if (!lineBytes.isEmpty) {
         val rangeKey = findRange(lineBytes, key2Ranges, workerNum)
+        //logger.info(s"${rangeKey.get._1}, ${lineBytes.substring(0, 10)}")
         rangeKey match {
           case Some(key) =>
             val lines = linesByRange.getOrElseUpdate(key._1, mutable.ArrayBuffer[ByteString]())
@@ -82,17 +85,20 @@ object SortAndPartition extends LazyLogging {
       }
     }
     linesByRange.foreach { case (key, lines) =>
-      val sortedLines = lines.sortWith((a, b) => unsignedLexicographicalComparator.compare(a ,b) < 0)
+      val sortedLines = {
+        if (sortRequired) lines.sortWith((a, b) => unsignedLexicographicalComparator.compare(a ,b) < 0)
+        else lines
+      }
       val sanitizedFilePath = filePath.replaceAll("[^a-zA-Z0-9.-]", "_")
-      val outputPath = s"$outputDir/$key/${sanitizedFilePath}_chunk_${chunkIndex}_Worker${currentWorkerID}_to$key"
+      val outputPath = {
+        if (sortRequired) s"$outputDir/$key/${sanitizedFilePath}_chunk_${chunkIndex}_Worker${currentWorkerID}_to$key"
+        else s"$outputDir/$key/${sanitizedFilePath}_chunk_${chunkIndex}_Worker${currentWorkerID}_Index$key"
+      }
       val outputFile = new File(outputPath)
 
       val parentDir = outputFile.getParentFile
       if (!parentDir.exists()) {
-        val dirCreated = parentDir.mkdirs()
-        if (!dirCreated) {
-          logger.warn(s"directory is not created: ${parentDir.getAbsolutePath}")
-        }
+        parentDir.mkdirs()
       }
 
       try {
@@ -117,7 +123,7 @@ object SortAndPartition extends LazyLogging {
       keyRanges.sortBy(mapping => mapping._1).collectFirst {
         case (index, (start, end))
           if (index == workerNum && unsignedLexicographicalComparator().compare(key, start) >= 0)
-            || unsignedLexicographicalComparator().compare(key, end) <= 0 => (index, key)
+            || unsignedLexicographicalComparator().compare(key, end) < 0 => (index, key)
       }
     }
   }

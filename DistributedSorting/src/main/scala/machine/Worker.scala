@@ -64,8 +64,9 @@ class Worker(masterHost: String, masterPort: Int,
         System.exit(1)
     }
     try {
+      val sortRequired = true
       SortAndPartition.openFileAndProcessing(filePaths, ID2Ranges.toList, outputDirectory,
-        workerID.get, totalWorkerCount.get)
+        workerID.get, totalWorkerCount.get, sortRequired)
       logger.info("Sorting and partitioning have successfully completed")
     } catch {
       case e: Exception =>
@@ -86,6 +87,7 @@ class Worker(masterHost: String, masterPort: Int,
     try {
       shuffle()
       notifyMasterShufflingDone()
+      deleteTempDirectories()
     } catch {
       case e: Exception =>
         logger.error(s"Shuffling Error: ${e.getMessage}")
@@ -93,8 +95,22 @@ class Worker(masterHost: String, masterPort: Int,
         deleteTempDirectories()
         System.exit(1)
     }
+    val tempFiles = IOUtils.getFilePathsFromDirectories(List(outputDirectory))
     try {
-      deleteTempDirectories()
+      val rangeMapping = Merge.getRangeMapping(tempFiles, ID2Ranges(workerID.get))
+      rangeMapping.foreach(s => logger.info(s"${s}"))
+      val sortRequired = false
+        SortAndPartition.openFileAndProcessing(tempFiles, rangeMapping, outputDirectory,
+        workerID.get, 4, sortRequired)
+    } catch {
+      case e: Exception => logger.error(s"Partition before merge error: ${e.getMessage}")
+        IOUtils.deleteFiles(tempFiles)
+        shutDownChannel()
+        System.exit(1)
+    }
+    try {
+      IOUtils.deleteFiles(tempFiles)
+      Merge.merge(outputDirectory, workerID.get)
       notifyMasterMergingDone()
     } catch {
       case e: Exception =>
@@ -203,8 +219,6 @@ class Worker(masterHost: String, masterPort: Int,
       threadPool.shutdown()
     }
   }
-
-
 
   private def shuffleData(stub: ShufflingMessageGrpc.ShufflingMessageBlockingStub, source: BufferedInputStream,
                           dest: Int, fileName: String): Unit = {
