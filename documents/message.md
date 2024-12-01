@@ -20,14 +20,14 @@
     
     - 필드:
         - `int workerID`: Worker의 ID
-        - `repeated String sampleData`: 샘플 데이터
+        - `repeated bytes sampleData`: 샘플 데이터
     
     Reply (M → W)
     
     - 필드:
-        - `Map<int32, String> workerIPs`: Worker의 IP 맵핑
+        - `Map<int32, string> workerIPs`: Worker의 IP 맵핑
         - `repeated WorkerIDKeyRangeMapping keyRangeMapping`: Key Range와 Worker ID 맵핑
-            - `int32 workerID`, `string startKey`, `string endKey`
+            - `int32 workerID`, `byte startKey`, `byte endKey`
 
 ---
 
@@ -61,7 +61,7 @@ Reply (M → W)
     **Reply (W → M)**
     
     - **필드**:
-        - 없음 (`StartShufflingReply`)???
+        - 없음 (`EmptyAckMsg`)
 
 ### **Shuffling 중**
 
@@ -70,8 +70,8 @@ Reply (M → W)
     **Request (Source Worker → Destination Worker)**
     
     - **필드**:
-        - `repeated String data`: 전송할 데이터
-        - `int32 source`: 데이터 송신 Worker ID
+        - `repeated bytes data`: 전송할 데이터
+        - `string filename`: 데이터 송신 Worker ID
     
     **Reply (Destination Worker → Source Worker)**
     
@@ -79,12 +79,12 @@ Reply (M → W)
         - 없음 (EmptyAckMsg)
 2. **`shuffleAck`**: **Shuffling 완료 메시지** *(Worker → Master)*
     
-    **Request (???)**
+    **Request (Worker -> Worker)**
     
     - **필드**:
         - `int32 source`: 데이터 송신 Worker ID
     
-    **Reply (???)**
+    **Reply (Worker -> Worker)**
     
     - **필드**:
         - 없음 (EmptyAckMsg)

@@ -1,4 +1,4 @@
-# Distributed Sorting Design Document
+# Distributed Sorting Design Sketch
 
 ## Requirement
 Distributed/Parallel sorting key/value records stored on multiple disks on multiple machines

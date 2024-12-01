@@ -9,7 +9,6 @@ import scala.collection.concurrent._
 import scala.concurrent._
 import scala.concurrent.duration._
 import java.nio.file.{Files, Paths, StandardCopyOption}
-import scala.io.Source
 import java.util.concurrent.Executors
 import com.google.protobuf.ByteString
 import java.io.{FileInputStream, BufferedInputStream}

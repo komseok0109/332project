@@ -47,11 +47,12 @@ scala: 2.13.15
   - Design unit and integration tests for each phase to verify correctness and performance.
 
 ## Libraries 
-- File I/O: `java.io` (FileReader, FileWriter, BufferedReader), `scala.io,Source`  
-- Synchronization: `CountDownLatch`, `CyclicBarrier`, `phaser` 
+- File I/O: `java.io`, `java.nio`   
+- Synchronization: `CountDownLatch`
 - Asynchronization: `Future`
-
-More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
+- For data: `ByteString`, `scala.collection.concurrent`
+- network: `io.gRPC`, `protobuf` (ScalaPB)
+- Logging: `LazyLogging`
 
 ## Overall Flow Chart
 ![image.png](images/flowchart.png)
@@ -76,8 +77,8 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
     <td>signaling the end of a worker’s partitioning</td>
   </tr>
   <tr>
-    <td><code>startShuffling</td>
-    <td>Start shuffling for each worker</td>
+    <td><code>shufflingEndMsg</td>
+    <td>worker notified shuffling done</td>
   </tr>
   <tr>
     <td><code>mergeEndMsg</td>
@@ -114,14 +115,18 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
     <td>CalculatePivotRequest<br>(worker -> master)</td>
     <td>
       <code>int32 workerID</code> : [worker's ID number, to say which worker's sampling ended]<br>
-      <code>repeated string sampleData</code> : [worker's sampled data]
+      <code>repeated bytes sampleData</code> : [worker's sampled data]
     </td>
   </tr>
   <tr>
     <td>CalculatePivotReply<br>(master -> worker)</td>
     <td>
       <code>map&lt;int32, string&gt; workerIPs</code> : [map { workerID -> workerIP }] <br>
-      <code>map&lt;string, int32&gt; key2Worker</code> : [map { key -> workerID }]
+      <code>repeated WorkerIDKeyRangeMapping keyRangeMapping</code> : list of WorkerIDKeyRangeMapping defined as <code>message {
+        int32 workerID = 1;
+        bytes startKey = 2;
+    bytes endKey = 3;
+      }</code>
     </td>
   </tr>
 </table>
@@ -134,14 +139,14 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
   </tr>
   <tr>
     <th rowspan="4">message</th>
-    <td>PartitioningCompleteRequest
+    <td>PhaseCompleteNotification
     <br>(worker -> master)</td>
     <td>
       <code>int32 workerID</code>
     </td>
   </tr>
   <tr>
-    <td>PartitioningCompleteReply<br>(master -> worker)</td>
+    <td>EmptyAckMsg<br>(master -> worker)</td>
     <td>
       empty 
     </td>
@@ -152,19 +157,19 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 <table>
   <tr>
     <th rowspan="1">rpc</th>
-    <th colspan="2">startShuffling : start shuffling
+    <th colspan="2">shufflingEndMsg : worker shuffling done
     </th>
   </tr>
   <tr>
     <th rowspan="4">messages</th>
-    <td>StartShufflingRequest
+    <td>PhaseCompleteNotification
     <br>(worker -> master)</td>
     <td>
-      <code>int32 receiver</code>
+      <code>int32 workerID</code>
     </td>
   </tr>
   <tr>
-    <td>StartShufflingReply<br>(master -> worker)</td>
+    <td>EmptyAckMsg<br>(master -> worker)</td>
     <td>
       empty 
     </td>
@@ -179,14 +184,14 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
   </tr>
   <tr>
     <th rowspan="4">messages</th>
-    <td>MergingCompleteRequest
+    <td>PhaseCompleteNotification
     <br>(worker -> master)</td>
     <td>
       <code>int32 workerID</code>
     </td>
   </tr>
   <tr>
-    <td>MergingCompleteReply<br>(master -> worker)</td>
+    <td>EmptyAckMsg<br>(master -> worker)</td>
     <td>
       empty 
     </td>
@@ -207,7 +212,7 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
     </td>
   </tr>
   <tr>
-    <td>shuffleAckno</td>
+    <td>shuffleAck</td>
     <td>
       Notify receiver that all data has been sent.
     </td>
@@ -225,12 +230,12 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
     <td>sendDataRequest
     </td>
     <td>
-      <code>repeated string datas</code> : [List of data to be sent]
-      <br><code>int32 source</code> : [ID of the worker sending the data]
+      <code>repeated byte datas</code> : [List of data to be sent]
+      <br><code>string filename</code> : [Name of the file source of data]
     </td>
   </tr>
   <tr>
-    <td>sendDataReply</td>
+    <td>EmptyAckMsg</td>
     <td>
       empty 
     </td>
@@ -240,24 +245,46 @@ More additional library: Cats Effect, ZIO, Monix, Quasar, FS2
 <table>
   <tr>
     <th rowspan="1">rpc</th>
-    <th colspan="2">shuffleAckno: Notify receiver that all data has been sent.
+    <th colspan="2">shuffleAck: Notify receiver that all data has been sent.
     </th>
   </tr>
   <tr>
     <th rowspan="4">messages</th>
-    <td>shuffleAcknoRequest
+    <td>shuffleAckRequest
     </td>
     <td>
     <code>int32 source</code>
     </td>
   </tr>
   <tr>
-    <td>shuffleAcknoReply</td>
+    <td>EmptyAckMsg</td>
     <td>
       empty 
     </td>
   </tr>
 </table>
 
-Feedback from TA: Duplicate messages can be reused.
+## Sampling
+In the sampling phase, each worker extracts 1MB of data from the input directory and sends it to the master. The master collects the 1MB samples received from all workers, sorts them, and divides the range into segments based on the number of workers to calculate pivots. Using the calculated pivots, the master assigns key ranges to each worker.
+
+## Sorting & Partitioning
+After receiving key ranges, workers read files from their input directories, sort the data, and perform partitioning. During this process, they read 100MB chunks at a time into memory, sort the data, and partition it based on the assigned key ranges, saving the partitions as separate files.
+
+In other words, if there are N workers, each 100MB chunk is divided into N files and stored accordingly.
+
+## Shuffling
+Each partition is sent to the worker it is designated for. Multiple threads are created to send partitions to multiple workers simultaneously. Additionally, each worker runs a server to receive and store partitions sent to it.
+
+## Merging
+During the merging process, the shuffled partitions are repartitioned into 4 consecutive ranges. Each range is assigned its respective partitions, which are then merged. This process results in a total of 4 output files, each corresponding to one of the defined ranges.
+
+
+
+
+
+
+
+
+
+
 
