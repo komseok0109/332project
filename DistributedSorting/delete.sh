@@ -7,7 +7,7 @@ while IFS= read -r worker_ip; do
     echo "Deploying to $worker_ip"
 
     ssh -n white@$worker_ip "
-        git clone --branch main https://github.com/komseok0109/332project.git
+        cd ~ && rm -rf 332project
     " || echo "Failed to execute git pull on $worker_ip"
 done < "$WORKERS_FILE"
 
