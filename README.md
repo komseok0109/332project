@@ -69,7 +69,7 @@ build.sbt  clean.sh  delete.sh  gitClone.sh  output.sh  project  src  workers.tx
 ```shell
 [white@vm-1-master DistributedSorting]$ ./gitClone.sh
 ```
-4. output.sh를 실행하여 Output 디렉토리를 생성한다. 각 worker에 `/home/white/output` 디렉토리를 생성한다.
+4. output.sh를 실행하여 Output 디렉토리를 생성한다. 각 worker에 `/home/white/output` 디렉토리를 생성한다. 따로 output 디렉토리를 생성하고 싶거나 생성한 경우 이 과정은 건너뛰어도 된다.
 ```shell
 [white@vm-1-master DistributedSorting]$ ./output.sh
 ```
