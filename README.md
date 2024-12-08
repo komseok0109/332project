@@ -129,9 +129,9 @@ white@vm01:~/332project/DistributedSorting$ sbt
 sbt:distributedSortingProject>
 ```
 
-이후, sbt에서 각 명령어를 입력해 실행한다. worker와 master의 명령어는 다음과 같다. master를 실행하고 각 worker들을 실행해야 한다. worker들간의 실행 순서는 관계 없지만 모든 worker는 master가 실행된 후에 실행되어야 한다.
+이후, sbt에서 각 명령어를 입력해 실행한다. worker와 master의 명령어는 다음과 같다. master를 실행하고 각 worker들을 실행해야 한다. worker들간의 실행 순서는 관계 없지만 모든 worker는 master가 실행된 후에 실행되어야 한다. master의 ip는 내부 ip인 2.2.2.254 혹은 10.1.25.21 둘 중 하나를 사용하면 된다. 
 master: `runMain machine.Master [Number of Worers]`
-worker: `runMain machine.Worker 2.2.2.254:50051 -I [ABSOLUTE_PATH_OF_INPUT_DIRECTORIES] -O [ABSOLUTE_PATH_OF_OUTPUT_DIRECTORY]`
+worker: `runMain machine.Worker [MASTER_IP]:50051 -I [ABSOLUTE_PATH_OF_INPUT_DIRECTORIES] -O [ABSOLUTE_PATH_OF_OUTPUT_DIRECTORY]`
 
 **주의사항**: master 코드가 서버를 열기 전에 worker를 실행하면 서버가 열리지 않았기에 연결이 실패되고 오류가 발생해 실행이 종료된다. 해당 사항을 대비해 master코드를 실행한 후 아래와 같이 서버가 시작되었다는 로그가 출력된 것을 확인한 후에 worker들을 실행해야 한다. (master를 먼저 실행했으면 웬만하면 해당 에러가 발생하지 않지만 master 머신에서 sbt 실행 속도가 worker보다 느리거나 등의 문제로 실제 실행은 worker가 먼저 실행될 수도 있다. 해당 상황을 위해서 로그 출력을 확인한 후 worker를 실행하는 것이 안전하다.)
 ```shell
@@ -154,7 +154,7 @@ sbt:distributedSortingProject> runMain machine.Worker 2.2.2.254:50051 -I /home/d
 input 디렉토리가 여러개라면 띄어쓰기를 통해 구분한다.
 (예시) input 디렉토리 path : /home/dataset/large1  과, /home/dataset/large2 인 경우
 ```shell
-sbt:distributedSortingProject> runMain machine.Worker 2.2.2.254:50051 -I /home/dataset/large1 /home/dataset/large2 -O /home/white/output"
+sbt:distributedSortingProject> runMain machine.Worker 10.1.25.21:50051 -I /home/dataset/large1 /home/dataset/large2 -O /home/white/output"
 ```
 로 실행하면 된다.
 
@@ -168,6 +168,43 @@ sbt:distributedSortingProject> runMain machine.Worker 2.2.2.254:50051 -I /home/d
 만약, 실행 중 특정 worker나 master에서 오류가 발생한 경우 master와 worker를 모두 `ctrl + c`를 활용하여 종료시킨 후에 output.sh를 이용하여 `/home/white/output`의 내용을 모두 삭제하고 다시 실행해야 한다. 만약 다른 output 디렉토리를 생성해서 실행하는 경우에도 해당 디렉토리에 내용을 모두 지우고 다시 실행해야 한다.
 
 
+## How to Test 
+아래는 테스트 하는 법에 대한 문서이다. 실행과는 크게 관계없다.
+
+output 파일의 형식은 다음과 같다:
+                **partition[w][p]**
+=> 여기서 w = 실행시 할당받은 worker ID, p = partition number (1~4) 이다.
+(예시) worker 1의 output file은 각각 partition11, partition12, partition13, partition14 이다.
+
+이 output file들을 전부 valsort로 검사한 후, 하나의 파일로 합쳐야 한다.
+gensort documentation에 따라 각 worer에서 다음의 명령어를 실행하여 각 worker의 output file이 정렬되었는지 검사하고, 하나로 합친다. 아래는 하나의 예시이다.
+```shell
+cd ~
+./valsort -o 1.sum output/partition[W]1
+./valsort -o 2.sum output/partition[W]2
+./valsort -o 3.sum output/partition[W]3
+./valsort -o 4.sum output/partition[W]4
+cat 1.sum 2.sum 3.sum 4.sum > all[W].sum
+./valsort -s all[W].sum
+```
+각 worker에 대해 all[w].sum 을 생성했다면, master에 각 파일을 전부 가져와서 모두 합쳐야 한다. 다음의 명령어를 실행하여 모든 all[w].sum 파일을 가져온다.
+```shell
+scp white@2.2.2.101:/home/white/all1.sum ~
+scp white@2.2.2.102:/home/white/all2.sum ~
+scp white@2.2.2.103:/home/white/all3.sum ~
+scp white@2.2.2.104:/home/white/all4.sum ~
+scp white@2.2.2.105:/home/white/all5.sum ~
+scp white@2.2.2.106:/home/white/all6.sum ~
+scp white@2.2.2.107:/home/white/all7.sum ~
+scp white@2.2.2.108:/home/white/all8.sum ~
+scp white@2.2.2.109:/home/white/all9.sum ~
+```
+이때 worker의 IP주소와 worker ID는 아무 관계없다. 실행시킬 때 IP주소를 2.2.2.109부터 실행했다면 109가 worker ID 1을 할당받는다. master가 출력하는 IP주소 순서가 worker ID순서이니 그걸 참고하면 된다. 모든 all[w].sum 파일을 가져왔다면 다음 명령어를 실행하여 모든 all[w].sum 파일을 합치고 valsort로 검사한다.
+```shell
+cd ~
+cat all1.sum all2.sum all3.sum all4.sum all5.sum all6.sum all7.sum all8.sum all9.sum > all.sum
+./valsort -s all.sum
+```
 ## Teammates
 
 [고민석](https://github.com/komseok0109)
