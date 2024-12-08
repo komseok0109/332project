@@ -148,13 +148,13 @@ sbt:distributedSortingProject> runMain machine.Master 4
 ```
 - Worker
 ```shell
-sbt:distributedSortingProject> runMain machine.Worker 2.2.2.254:50051 -I /home/dataset/small -O /home/white/output
+sbt:distributedSortingProject> runMain machine.Worker 10.1.25.21:50051 -I /home/dataset/small -O /home/white/output
 ```
 
 input 디렉토리가 여러개라면 띄어쓰기를 통해 구분한다.
 (예시) input 디렉토리 path : /home/dataset/large1  과, /home/dataset/large2 인 경우
 ```shell
-sbt:distributedSortingProject> runMain machine.Worker 10.1.25.21:50051 -I /home/dataset/large1 /home/dataset/large2 -O /home/white/output"
+sbt:distributedSortingProject> runMain machine.Worker 2.2.2.254:50051 -I /home/dataset/large1 /home/dataset/large2 -O /home/white/output"
 ```
 로 실행하면 된다.
 
