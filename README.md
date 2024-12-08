@@ -38,7 +38,7 @@ export PATH=$PATH:~/.sbt.bin
 
 b. vim 저장 후
 ```shell
-vim ~/.bashrc
+source .bashrc
 ```
 
 3. 설치 확인
