@@ -22,6 +22,9 @@ It features:
 - Worker processes that sort assigned data chunks locally.
 - Inter-process communication over gRPC.
 - Validation through `valsort` to ensure correct global sorting.
+### Key Achievements
+- Achieved **first place** in the distributed sorting project by sorting the largest dataset in **300-500 seconds**.
+- Completed the sorting in **half the time** of the previous highest record from earlier classes.
 ---
 ## Installation
 ### Requirements
@@ -50,7 +53,7 @@ source ~/.bashrc
 ```
 ## Build Instructions
 Clone and build on each node (master and workers):
-```
+```bash
 git clone https://github.com/komseok0109/332project.git
 cd 332project/DistributedSorting
 sbt compile
@@ -58,12 +61,12 @@ sbt compile
 ## Running the System
 1. Ensure all machines have input and oupt directories set up.
 2. Start the master:
-   ```
-   sbt
-  > runMain machine.Master [NumberOfWorkers]
-   ```
-3. Start each worker after the master server is up:
+```bash
+sbt
+> runMain machine.Master [NumberOfWorkers]
 ```
+3. Start each worker after the master server is up:
+```bash
 sbt
 > runMain machine.Worker [MASTER_IP]:50051 -I [INPUT_PATHS] -O [OUTPUT_PATH]
 ```
